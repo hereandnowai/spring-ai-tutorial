@@ -22,3 +22,8 @@ data/
 social-media-content/
 .env
 *.env
+
+# Local working copies (not published)
+01-call-an-llm/
+01-call-an-llm-v2/
+node_modules/

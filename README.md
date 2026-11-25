@@ -10,7 +10,7 @@ even without a graphics card**, with a small open model served by [Ollama](https
 
 | # | Topic | Code |
 |---|---|---|
-| 1 | Call an LLM from Spring Boot: text, a Java object back, streaming | [01-call-an-llm](01-call-an-llm) |
+| 1 | Your first AI chatbot: Spring Boot + Spring AI + a React chat page, step by step | [01-first-ai-chatbot](01-first-ai-chatbot) |
 | 2 | Prompt templates and structured output | coming soon |
 | 3 | Chat memory (session memory in Spring AI 2.1) | coming soon |
 | 4 | RAG with pgvector: chat with your documents | coming soon |
@@ -21,12 +21,12 @@ even without a graphics card**, with a small open model served by [Ollama](https
 | 9 | Spring AI vs LangChain4j (tested) | coming soon |
 | 10 | LangChain4j quickstart | coming soon |
 
-A new episode is released every day. Each folder has its own `README.md` and an `output.txt` with the real output
+Each folder has its own `README.md` and an `output.txt` with the real output
 we got when we ran it.
 
 ## Quick start
 
-You need **Java 21+** (17+ works), **Maven**, and **Ollama**.
+You need **Java 21**, **Ollama** and (for the chat page) **Node.js**. Maven comes with each project (`./mvnw`).
 
 ```bash
 # 1. Get a small model that runs on a normal laptop (about 3.3 GB)
@@ -34,19 +34,21 @@ ollama pull qwen3.5:4b
 
 # 2. Get the code
 git clone https://github.com/hereandnowai/spring-ai-tutorial.git
-cd spring-ai-tutorial/01-call-an-llm
+cd spring-ai-tutorial/01-first-ai-chatbot/spring-ai-chat
 
-# 3. Run it
-mvn spring-boot:run
+# 3. Run it (Windows: .\mvnw.cmd spring-boot:run)
+./mvnw spring-boot:run
 
 # 4. Ask it something
-curl "localhost:8080/ai?q=What%20is%20Spring%20AI%3F"
+curl "localhost:8080/chat?q=What%20is%20Spring%20AI%3F"
 ```
 
-Open the folder in VS Code, IntelliJ IDEA or your favourite editor to read and change the code.
+Open the folder in VS Code, IntelliJ IDEA or your favourite editor. Each episode's `README.md` walks through every step.
 
-**Tested with:** Spring AI 2.1.0, Spring Boot 4.2.0, Java 21 target, Ollama 0.32.13, `qwen3.5:4b`.
+**Tested with:** Spring AI 2.1, Spring Boot 4.2, Java 21, Ollama with `qwen3.5:4b` (also CPU-only).
 Got a strong GPU? Try a bigger model such as `qwen3.5:9b` by changing `spring.ai.ollama.chat.model`.
+
+Spring is a trademark of Broadcom Inc. and/or its subsidiaries. Java is a trademark of Oracle.
 
 ## About HERE AND NOW AI
 
