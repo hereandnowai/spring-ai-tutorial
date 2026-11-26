@@ -1,0 +1,1365 @@
+# Real runs, 25-26 Nov 2026 ~23:25-00:05 IST, macOS (Apple M4 Max, 128 GB). Episode 2 v2 "A smarter chatbot".
+# Same project as episode 1 (my-first-chatbot: spring-ai-chat + chat-ui), copied from 01-first-ai-chatbot, then changed step by step.
+# Java: Eclipse Temurin 21.0.13.1+2. Spring Boot 4.2.0, Spring AI 2.1.0-M1 (as start.spring.io wrote it in episode 1).
+# Ollama 0.32.13, qwen3.5:4b, think=false, num-ctx=8192, temperature 0.7 (application.properties unchanged from episode 1).
+# Node.js v26.13.0, Vite 8.3.8, React 19.3.1. Ports: Spring 8080, Vite 5173, Ollama 11434.
+# Two modes: "normal" (Ollama may use the GPU) and "CPU only" (--spring.ai.ollama.chat.num-gpu=0; ollama ps: 100% CPU).
+# Chat page runs: headless Chromium at 1920x1080 types the question, presses Enter (or clicks Quiz me) and measures
+# "first words" (first text in the answer bubble) and "done" (Send button back). Times are wall-clock.
+# Quiz answers were checked by us, one by one: "RIGHT" = the option marked by answerIndex really is the correct one.
+
+## Step 2: open the project again (episode 1 code, unchanged), normal mode
+$ ollama list
+NAME          ID              SIZE      MODIFIED
+qwen3.5:4b    d8b0f5e9760c    3.3 GB    22 hours ago
+   (our machine lists other models too; only this one is needed)
+$ cd spring-ai-chat
+$ ./mvnw spring-boot:run
+Started SpringAiChatApplication in 0.88 seconds (process running for 1.026)
+$ cd chat-ui          (second terminal)
+$ npm run dev
+  VITE v8.3.8  ready in 567 ms
+  ➜  Local:   http://localhost:5173/
+Chat page, question "What is recursion?" (the episode 1 page and app, no system prompt):
+  run 1 (includes loading the model): first words 1.9 s, done 16.9 s, about 2,500 characters, Markdown (###, **, $n!$), example in Python
+  run 2: first words 0.27 s, done 17.9 s, about 3,300 characters, Markdown + a table, example in Python
+  First lines of run 2: "**Recursion** is a powerful programming technique where a function calls itself to solve a problem. ..."
+  "### 1. The Two Essential Parts" ... "Here is how it looks in Python:" ... "```python / def factorial(n): ..."
+  Screenshot: chat-ui-ep1-recursion-top.png (run 2)
+
+## Step 4-5: a default system prompt (the constructor), restart, chat page, normal mode
+First wording we tried ("Keep your answers short: three sentences at most. / When an example helps, give one small Java
+example.") gave weak or wrong code in 3 of 3 tries (e.g. "Here is a simple loop that prints numbers from 1 to 5:
+System.out.println(i); if (i < 5) i++;"). Final wording (ChatController.java, step 4):
+  You are Chai, a friendly Java tutor from HERE AND NOW AI.
+  Answer in three short sentences or less.
+  If code helps, show one small, complete Java method on its own lines.
+  Use plain text, no Markdown.
+^C, ./mvnw spring-boot:run -> Started SpringAiChatApplication in 0.824 seconds
+Chat page, 4 sessions of "Who are you?" then "What is recursion?":
+  session A: Who are you? (first words 0.63 s, done 1.09 s)
+     I am Chai, a friendly Java tutor here to help you learn. I will answer in three short sentences or less and use plain text without markdown. Feel free to ask me any question about Java syntax, logic, or best practices.
+   What is recursion? (first words 0.26 s, done 1.83 s)
+     Recursion is when a method calls itself to solve a problem by breaking it into smaller parts.
+     It needs a base case to stop the process and avoid infinite loops.
+     Here is an example of a simple recursive function:
+
+     public static int sum(int n) {
+         if (n == 0) return 0;
+         return n + sum(n - 1);
+     }
+  session B: Who are you? (0.27 s / 0.80 s) I am Chai, your friendly Java tutor here to help with coding challenges. I can explain concepts or provide small code snippets if needed. Just ask me how I can assist you today.
+   What is recursion? (0.44 s / 2.26 s) Recursion is when a function calls itself to solve a problem. ... Always remember to include a base case so the recursion stops. ```java / public static int sum(int n) { if (n <= 1) return n; return n + sum(n - 1); } ```   <- used a ```java fence despite "no Markdown"
+  session C: Who are you? (0.37 s / 0.78 s) I am Chai, your friendly Java tutor here to help you learn. I will explain concepts simply and share short code examples when needed. ...
+   What is recursion? (0.31 s / 1.30 s) Recursion is when a method calls itself to solve a problem. It works best for tasks that can be broken into smaller, similar steps like calculating factorials. Every recursive method needs a base case ... (no code)
+  session D: Who are you? (0.37 s / 0.73 s)
+     I am Chai, your friendly Java tutor from HERE AND NOW AI. I love explaining Java concepts clearly and concisely. My goal is to help you learn by showing simple code examples.
+   What is recursion? (0.32 s / 2.25 s) ... "Here is a simple Java method that counts down from a number:" public static int countDown(int n) { if (n == 0) return 0; return n + countDown(n - 1); }   <- the code is right, but it sums, it doesn't count down
+  -> answers about 1-2 s instead of about 17 s.
+  Re-shot for the video (same code: step-4 ChatController + episode 1 page), 8 more sessions on 26 Nov 2026 ~01:10 IST;
+  the video shows session 8 (one conversation, two screenshots: after the first answer and after the second):
+  session 8: Who are you? (first words 0.37 s, done 0.74 s)
+     I am Chai, your friendly Java tutor from HERE AND NOW AI. I help you learn and solve Java problems clearly. Feel free to ask me anything about programming today.
+   What is recursion? (first words 0.37 s, done 1.21 s)
+     Recursion is when a function calls itself to solve a problem.
+     It needs a base case to stop the infinite loop and an action that gets closer to it.
+     Here is a simple Java example:
+
+     int factorial(int n) {
+         if (n <= 1) return 1;
+         return n * factorial(n - 1);
+     }
+  the other 7 sessions: intro said "from HERE AND NOW AI" in 7 of 8; recursion answers 0.99-1.66 s: factorial (4), a countDown
+  that prints (1, correct), "countDown" that actually sums (2, the name is wrong), no code (1); 1 of 8 used a ```java fence.
+  Screenshots: chat-ui-chai-who.png, chat-ui-chai-recursion.png (session 8)
+ Small models don't follow every rule every time (session B: Markdown fence).
+
+## Steps 6-7: the prompt moves to src/main/resources/prompts/tutor.st with a blank {level}; /stream?level=, normal mode
+First tutor.st line we tried: "You are talking to a {level}." -> little difference between the two levels. Final file:
+  You are Chai, a friendly Java tutor from HERE AND NOW AI.
+  The person asking is a {level}. Use words a {level} knows.
+  Answer in three short sentences or less.
+  If code helps, show one small, complete Java method on its own lines.
+  Use plain text, no Markdown.
+^C, ./mvnw spring-boot:run -> Started SpringAiChatApplication in 0.835 seconds
+$ curl "localhost:8080/stream?q=What%20is%20a%20class%3F&level=complete%20beginner"     (same text as the browser shows)
+A class is like a blueprint that describes how to build something specific, such as a car or a house. It lists the features and rules everything made from that blueprint must follow. Here is a simple Java method showing one basic class:
+class Car {
+    String color;
+    void drive() {
+        System.out.println("Driving " + color);
+    }
+}
+   (2.3 s)
+$ (again)  A class is like a blueprint for making things that all do the same things. For example, a Car class tells you what parts a car needs and how to drive it. Here is a tiny example: public class Car { String color; void start() { System.out.println("Engine on"); } }   (2.0 s)
+$ curl "localhost:8080/stream?q=What%20is%20a%20class%3F&level=Java%20developer"
+A class is a blueprint for objects that encapsulates state via fields and behavior via methods. It acts as the fundamental building block in Java's object-oriented paradigm, similar to how interfaces define contracts but without instance state. Here is a minimal complete method inside such a class:
+public int calculateSum(int a, int b) {
+    return a + b;
+}
+   (2.5 s)
+$ (again)  A class defines a blueprint for objects with specific fields (variables) and behaviors (methods). It acts as the template from which instances are created to model real-world entities in your application. For example: public static void main(String[] args) { Person p = new Person("Alice", 30); }   (2.1 s)
+Other questions tried with the final tutor.st:
+  "What is recursion?" both levels: 2.0-2.2 s, correct small methods, little difference between levels.
+  "What is a Java record?": complete beginner 2 of 2 showed a CLASS instead of a record (wrong); Java developer 2 of 2 correct
+     records (e.g. "public record Point(int x, int y) { }"). -> not used for step 9; mentioned as a tip ("read the code").
+  "What is an interface?": beginner "An interface is like a rulebook ..." (1.65 s, 2.48 s); Java developer "An interface
+     defines a contract with methods and constants that a class must implement..." (1.77 s, 1.94 s).
+
+## Steps 8-9: the "Explain for" dropdown in App.jsx (a few lines typed by hand), chat page, normal mode
+Vite reloaded the page by itself after saving. Browser errors: none.
+  session 1, Explain for: Complete beginner -> "What is an interface?" (first words 0.37 s, done 2.20 s)
+     An interface is like a rulebook that says what features your program can use but not how to make them work. ... public interface EnergySource { int getEnergy(); }
+   Explain for: Java developer -> same question (0.36 s / 2.39 s)
+     An interface is a contract defining a set of abstract methods that classes must implement to comply with. ... (used a ```java fence)
+  session 2 (shown in the video), Complete beginner (0.26 s / 0.94 s):
+     An interface is like a rulebook that says what a class can do without telling how it does them.
+     It allows different classes to work together by agreeing on a shared set of actions.
+     Here is a simple example in Java:
+
+     public interface Drawable {
+         void show();
+     }
+   Java developer (0.26 s / 1.98 s):
+     An interface defines a contract of behavior that implementing classes must provide, acting like a type-safe abstract class but supporting only method signatures (pre-Java 8) or default/static methods (post-Java 8).
+
+     interface Dog {
+         void bark();
+     }
+
+     class GoldenRetriever implements Dog {
+         public void bark() { System.out.println("Woof!"); }
+     }
+  Screenshots: chat-ui-dropdown.png, chat-ui-level-beginner.png, chat-ui-level-both.png
+
+## Steps 10-11: records Quiz + QuizQuestion, prompts/quiz.st, /quiz with .entity(Quiz.class), normal mode
+quiz.st:
+  Make a quiz about {topic} for a Java beginner.
+  Write exactly {count} multiple-choice questions.
+  Each question has 4 options, and exactly one of them is correct.
+  answerIndex is the position of the correct option, counting from 0.
+  Explain the correct answer in one short sentence.
+$ curl "localhost:8080/quiz?topic=recursion"      (count defaults to 3)
+First 3 tries (same code, before the counted batch; not in the totals): marked answers right 1/3, 1/3, 2/3.
+#1  HTTP 200  11.7 s  topic "Recursion"  answerIndex in range: yes  marked answers right (our check): 1/3
+   Q1 What is the defining characteristic of a recursive method in Java?
+        0) The method calls an external library function.
+        1) The method uses a loop structure instead of self-calling.
+      * 2) The method calls itself directly or indirectly within its own code.
+        3) The method is stored in a static global variable.
+      explanation: In Java, a method must call itself to be considered recursive.
+      -> marked answer RIGHT
+   Q2 Why is a base case (termination condition) essential in recursive Java methods?
+        0) To increase the speed of execution significantly.
+        1) To allow the method to access global variables easily.
+        2) To prevent the stack overflow error that occurs in infinite loops.
+      * 3) To reduce the amount of code needed for complex calculations.
+      explanation: Without a base case, the recursion will continue indefinitely until the program runs out of memory.
+      -> marked answer WRONG
+   Q3 How does recursion conceptually solve a problem?
+        0) Solving a large problem by solving smaller sub-problems of the same type.
+      * 1) Applying the same algorithm to a larger set of data without changes.
+        2) Using iteration to replace manual loops for better performance.
+        3) Calling multiple different methods sequentially to complete a task.
+      explanation: Recursion involves breaking down a problem into smaller instances of the same problem.
+      -> marked answer WRONG
+#2  HTTP 200  11.1 s  topic "Recursion in Java"  answerIndex in range: yes  marked answers right (our check): 1/3
+   Q1 Which of the following is essential to prevent a StackOverflowError when using recursion in Java?
+        0) The method calls itself without any parameters.
+        1) The method always returns an empty string.
+        2) The method never stops executing once started.
+      * 3) The method includes a condition that prevents further self-calls.
+      explanation: A recursive method must have a base case to eventually stop the infinite repetition of calls.
+      -> marked answer RIGHT
+   Q2 What serves as the standard base case for calculating the factorial of a non-negative integer n in Java?
+        0) n = 0
+        1) n = 1
+      * 2) n > 5
+        3) n < 0
+      explanation: In a recursive function like factorial, the base case is the simplest input where no further recursion occurs.
+      -> marked answer WRONG
+   Q3 In a Java recursive method, what component represents the 'next step' that moves the execution closer to the solution?
+        0) The base case condition check
+      * 1) The return statement output
+        2) The recursive call to solve a smaller subproblem
+        3) The variable declaration
+      explanation: The 'next step' in recursion is the self-call that reduces the problem size toward the base case.
+      -> marked answer WRONG
+#3  HTTP 200  12.1 s  topic "recursion"  answerIndex in range: yes  marked answers right (our check): 2/3
+   Q1 What is the purpose of the base case in a recursive Java method?
+        0) A function that calls itself infinitely until a crash occurs
+        1) A condition that determines when the recursion should stop
+      * 2) An extra parameter added to every recursive call
+        3) The line of code where the function logic is defined
+      explanation: The base case stops the recursive calls to prevent an infinite loop.
+      -> marked answer WRONG
+   Q2 Which scenario indicates that a recursive method has not been implemented correctly and will cause a runtime error?
+      * 0) A runtime error that happens when there is no base case or the logic repeats incorrectly
+        1) A compilation error caused by missing semicolons
+        2) An infinite loop running in a traditional while statement
+        3) A syntax error found only during code review
+      explanation: A stack overflow occurs when too many nested calls consume all available memory.
+      -> marked answer RIGHT
+   Q3 How does Java handle the mechanics of a recursive call internally?
+        0) The same function is executed once in parallel across multiple threads
+      * 1) A new invocation of the function is added to the execution stack
+        2) The original code block is duplicated and saved to disk
+        3) The function variables are reset to their default values globally
+      explanation: Each call creates a new instance of the function on the call stack.
+      -> marked answer RIGHT
+
+### The counted batch: 25 x /quiz?topic=recursion, final code, restarted app
+Parsed as a Quiz (HTTP 200): 25 of 25. answerIndex in range: 25 of 25. 3 questions with 4 options each: 25 of 25.
+Marked answers that are really right (checked by us, one by one): 47 of 75 (63%). All three right: 5 of 25 quizzes.
+Time per quiz: 6.4-12.9 s (most 8-12 s).
+#1  HTTP 200  12.0 s  topic "Recursion in Java"  answerIndex in range: yes  marked answers right (our check): 2/3
+   Q1 What is the defining characteristic of recursion in Java?
+        0) It uses a stack data structure internally
+      * 1) The method invokes itself repeatedly in its own code body
+        2) It relies on external libraries for loop control
+        3) It requires an explicit loop statement to finish
+      explanation: A method calls itself during execution to solve a problem recursively.
+      -> marked answer RIGHT
+   Q2 What does the base case do in a recursive function?
+      * 0) It is a condition where the method stops calling itself
+        1) It allows the program to run indefinitely without errors
+        2) It increases the speed of the execution significantly
+        3) It eliminates the need for parameter passing
+      explanation: The base case prevents infinite recursion by stopping the method from calling itself.
+      -> marked answer RIGHT
+   Q3 Which error might occur if a recursive method lacks a proper base case?
+        0) It happens when the method returns a null value
+        1) It occurs when the base case is never reached due to infinite recursion
+      * 2) It is triggered by missing semicolons in the code
+        3) It appears when using primitive types instead of objects
+      explanation: The stack overflow exception occurs when too many recursive calls are made and memory runs out.
+      -> marked answer WRONG
+#2  HTTP 200  12.4 s  topic "Recursion in Java"  answerIndex in range: yes  marked answers right (our check): 3/3
+   Q1 What is the primary purpose of a base case in a Java recursive method?
+        0) It allows the function to call itself indefinitely without issues.
+      * 1) It is the condition that stops the recursive calls from continuing.
+        2) It is used to optimize memory usage in all recursive algorithms.
+        3) It ensures that the function returns a boolean value only.
+      explanation: The base case prevents infinite recursion by defining a stopping condition.
+      -> marked answer RIGHT
+   Q2 Which part of a recursive Java method is responsible for returning the calculated result to the caller?
+        0) It declares the variable name for the recursive function.
+        1) It defines when the recursion should stop executing.
+      * 2) It provides a value that allows the previous call in the chain to receive its result.
+        3) It initializes the stack memory before the function begins.
+      explanation: The return statement sends the computed result back up the call stack to where it was first called.
+      -> marked answer RIGHT
+   Q3 What typically happens if a recursive function lacks a valid base case or one that can be reached?
+      * 0) An infinite loop where the function keeps calling itself without ever reaching the base case.
+        1) A syntax error caused by missing semicolons in the return statement.
+        2) A memory overflow that happens immediately upon entering the method.
+        3) A compilation failure because the method is not declared as static.
+      explanation: A logical error occurs when the base case never triggers because the problem size does not get smaller.
+      -> marked answer RIGHT
+#3  HTTP 200  10.6 s  topic "Recursion"  answerIndex in range: yes  marked answers right (our check): 3/3
+   Q1 What is the fundamental mechanism that makes a method recursive?
+        0) It uses loops to repeat execution until a condition is met.
+      * 1) It calls itself repeatedly until it reaches a base case.
+        2) It stores all previous calculations in a database for later use.
+        3) It relies on external libraries to handle repetitive tasks.
+      explanation: A recursive method calls itself to solve a smaller version of the same problem.
+      -> marked answer RIGHT
+   Q2 Why is a base case essential in a recursive function?
+        0) To calculate the factorial of a number using loops.
+        1) To handle large datasets efficiently in parallel threads.
+        2) To replace all iterative code with functional programming constructs.
+      * 3) To stop the infinite chain of method calls that would otherwise occur.
+      explanation: Without a base case, the recursion would continue indefinitely and eventually cause a stack overflow.
+      -> marked answer RIGHT
+   Q3 What is the result of calculating the factorial of 0 (0!) using recursion?
+        0) 0
+        1) -1
+      * 2) 1
+        3) Infinity
+      explanation: The factorial of zero is mathematically defined as 1.
+      -> marked answer RIGHT
+#4  HTTP 200  12.0 s  topic "Recursion in Java"  answerIndex in range: yes  marked answers right (our check): 3/3
+   Q1 What is the primary characteristic of a recursive method in Java?
+        0) A recursive method uses a loop instead of self-calling.
+      * 1) A recursive method calls itself to solve a smaller instance of the same problem.
+        2) Recursion is used only for sorting algorithms in Java.
+        3) Recursive methods always terminate without a base case.
+      explanation: A recursive method calls itself to solve a smaller instance of the same problem.
+      -> marked answer RIGHT
+   Q2 What happens if a recursive method lacks a base case?
+        0) It will return infinity.
+        1) It will skip the next line of code.
+        2) It will execute until it hits a base case or throws an error.
+      * 3) It will compile but fail at runtime due to missing logic.
+      explanation: Without a base case to stop the execution, a recursive method will cause a StackOverflowError.
+      -> marked answer RIGHT
+   Q3 Which statement best describes how recursion breaks down a problem?
+      * 0) The original problem is broken down into smaller subproblems of the same type.
+        1) Different types of problems are solved sequentially.
+        2) The solution is calculated iteratively using a loop.
+        3) A helper method is created to store intermediate results.
+      explanation: The problem is divided into smaller subproblems of the same type.
+      -> marked answer RIGHT
+#5  HTTP 200  12.4 s  topic "Recursion"  answerIndex in range: yes  marked answers right (our check): 3/3
+   Q1 What is the most critical component required in every recursive method to prevent an infinite loop?
+        0) The method must call another function in the same file.
+      * 1) The method must include a condition that eventually stops the recursion.
+        2) The method must use a for loop inside itself.
+        3) The method cannot be called from any other place.
+      explanation: A recursive method must have a base case to stop the repeated calls.
+      -> marked answer RIGHT
+   Q2 Which definition best describes the core mechanism of recursion in Java?
+      * 0) The ability for a function to call itself directly or indirectly.
+        1) The requirement to use global variables for state management.
+        2) The necessity of storing the entire problem stack in memory at once.
+        3) The rule that all recursive calls must be inside a while loop.
+      explanation: Recursion allows a single function to solve a problem by calling itself.
+      -> marked answer RIGHT
+   Q3 How does the Java Virtual Machine (JVM) manage memory during a sequence of recursive function calls?
+        0) Memory usage remains constant regardless of input size.
+        1) The execution speed always increases as the problem size grows.
+        2) Multiple functions are created dynamically for each recursive step.
+      * 3) A new frame is added to the call stack for every recursive invocation.
+      explanation: The stack grows with each function call until the base case is reached.
+      -> marked answer RIGHT
+#6  HTTP 200  11.4 s  topic "recursion"  answerIndex in range: yes  marked answers right (our check): 1/3
+   Q1 What is the most critical requirement to prevent an infinite loop in a recursive function?
+        0) The method always calls itself regardless of conditions.
+      * 1) The method includes a condition that eventually becomes false.
+        2) Recursion is only used for sorting algorithms in Java.
+        3) Java supports recursion only through stack overflow errors.
+      explanation: A recursive method must have a base case to stop repeating infinitely.
+      -> marked answer RIGHT
+   Q2 In a recursive function, what is defined as the 'base case'?
+        0) The final step where the problem is solved without recursion.
+        1) The part of the code that handles the complex calculation.
+        2) The initial input provided to the function before it starts.
+      * 3) The stack frame that stores variables for the current function call.
+      explanation: The base case is the condition that stops further recursive calls.
+      -> marked answer WRONG
+   Q3 What happens in Java if a recursive method exceeds the stack depth limit?
+      * 0) A variable that counts down to zero during execution.
+        1) The maximum number of recursive calls the system memory can handle.
+        2) The type of data structure used to store function arguments.
+        3) An error code that indicates successful recursion completion.
+      explanation: The stack depth limit is the maximum number of nested calls the JVM allows before crashing.
+      -> marked answer WRONG
+#7  HTTP 200  11.4 s  topic "Recursion"  answerIndex in range: yes  marked answers right (our check): 2/3
+   Q1 What is the most critical requirement for a recursive method in Java?
+        0) A recursion loop is used inside the method body.
+      * 1) The method must call itself until a termination condition is met.
+        2) The function must be declared as public static void.
+        3) Recursion requires passing parameters to the next iteration.
+      explanation: In Java, a recursive method must have a base case to stop the infinite repetition of function calls.
+      -> marked answer RIGHT
+   Q2 What typically causes a 'StackOverflowError' in Java?
+      * 0) A stack overflow happens when the recursion depth is too great.
+        1) A stack overflow happens when you forget to return a value.
+        2) A stack overflow happens when you use loops instead of recursion.
+        3) A stack overflow happens when the base case is unreachable.
+      explanation: A stack overflow occurs when the number of recursive calls exceeds the maximum limit allowed by the system.
+      -> marked answer RIGHT
+   Q3 Which scenario guarantees that a recursive function will never terminate?
+        0) The method has no base case defined.
+        1) The method calls itself without any changes to its parameters.
+        2) The return statement is missing.
+      * 3) The method is declared as final.
+      explanation: An infinite loop occurs if the recursive call does not move closer to the base case.
+      -> marked answer WRONG
+#8  HTTP 200  12.2 s  topic "recursion"  answerIndex in range: yes  marked answers right (our check): 2/3
+   Q1 What is the primary characteristic of a recursive function in Java?
+        0) It uses multiple functions to solve different problems simultaneously.
+      * 1) It calls itself repeatedly until a base case is reached.
+        2) It relies on global variables to store intermediate results.
+        3) It executes sequentially without any self-referential logic.
+      explanation: A recursive function calls itself to solve a smaller version of the same problem.
+      -> marked answer RIGHT
+   Q2 What happens if a recursive method in Java lacks a base case?
+        0) It prevents infinite loops by stopping at zero iterations.
+        1) It automatically calculates the final result without any conditions.
+        2) It requires an explicit return statement for every possible input value.
+      * 3) It leads to infinite recursion, causing a StackOverflowError.
+      explanation: Without a base case, the function will keep calling itself indefinitely until a StackOverflowError occurs.
+      -> marked answer RIGHT
+   Q3 In the context of Java recursion, what defines the termination point of the execution?
+      * 0) It is the part of the code where the function calls itself.
+        1) It is a variable used to store the final answer of the recursion.
+        2) It is the initial value passed to the recursive function on the first call.
+        3) It is the base case, which stops the recursion when a specific condition is met.
+      explanation: The base case is the stopping condition that prevents the recursion from continuing infinitely.
+      -> marked answer WRONG
+#9  HTTP 200  12.9 s  topic "Recursion in Java"  answerIndex in range: yes  marked answers right (our check): 1/3
+   Q1 What is the fundamental mechanism that allows recursion to terminate and return a result?
+        0) The function calls itself infinitely without ever stopping.
+      * 1) The function calls itself with simpler input until it hits a base case.
+        2) The function always requires explicit iteration using loops.
+        3) The function must be declared as static to work correctly.
+      explanation: In recursion, the function calls itself to solve a smaller instance of the same problem until it reaches a stopping condition.
+      -> marked answer RIGHT
+   Q2 What is the role of the 'base case' in a recursive Java method?
+        0) The part of the code that calculates the final result using loops.
+        1) The explicit instruction to stop recursion when a certain condition is met.
+      * 2) The memory location where the recursive call stack is stored.
+        3) The variable that holds the total count of function calls made.
+      explanation: A base case is the specific condition where the function stops calling itself and returns a concrete value.
+      -> marked answer WRONG
+   Q3 What happens if a recursive Java function lacks a proper base case?
+      * 0) The program will crash immediately without executing any logic.
+        1) The program will execute forever or until the call stack is exhausted.
+        2) The result will always be null regardless of the input size.
+        3) The compiler will automatically add a base case for safety.
+      explanation: Without a base case to stop the process, the function will keep calling itself indefinitely until the stack overflows.
+      -> marked answer WRONG
+#10  HTTP 200  10.0 s  topic "Java Recursion"  answerIndex in range: yes  marked answers right (our check): 1/3
+   Q1 What is the most critical component of a recursive function?
+        0) A recursive method must always have at least one base case to prevent infinite execution.
+      * 1) A recursive method can run forever if it has no base case to stop the process.
+        2) Base cases in recursion are optional and only needed for performance optimization.
+        3) A function call is considered a base case when it returns an empty string.
+      explanation: The base case stops the recursion from running infinitely.
+      -> marked answer WRONG
+   Q2 How does the concept of recursion apply to solving a problem?
+      * 0) Recursion solves a problem by dividing it into larger, more complex sub-problems.
+        1) Recursive functions must call different methods to solve each step.
+        2) Recursion is only valid when the solution requires iterative loops.
+        3) The recursive approach is used to eliminate memory usage in large arrays.
+      explanation: Recursion works by breaking a problem into smaller instances of the same problem.
+      -> marked answer WRONG
+   Q3 What happens if you forget to include a base case in your Java recursive method?
+        0) If there is no base case, the program will execute faster than with one.
+        1) A recursive function without a base case will always return true.
+      * 2) Skipping the base case allows for unbounded memory growth in Java.
+        3) The absence of a base case makes the code more readable and easier to debug.
+      explanation: Without a base case, a recursive function will eventually cause a StackOverflowError.
+      -> marked answer RIGHT
+#11  HTTP 200  6.4 s  topic "Recursion"  answerIndex in range: yes  marked answers right (our check): 2/3
+   Q1 Which statement best describes the core behavior of a recursive method in Java?
+        0) A recursive method calls another function.
+      * 1) A recursive method calls itself.
+        2) A recursive method stops when a variable is zero.
+        3) A recursive method uses loops instead of repetition.
+      explanation: A recursive method calls itself during its execution.
+      -> marked answer RIGHT
+   Q2 What is the purpose of a 'base case' in a Java recursive method?
+        0) The base case is where the function calls itself.
+        1) The base case is the maximum value allowed.
+        2) The base case is an optional step for optimization.
+      * 3) The base case is the condition that stops the recursive calls.
+      explanation: The base case is the condition that prevents infinite recursion by stopping the process.
+      -> marked answer RIGHT
+   Q3 What is the most likely consequence of forgetting to define a base case in a recursive method?
+        0) It makes the code faster.
+        1) It allows the program to run forever.
+      * 2) It simplifies the logic by eliminating loops.
+        3) It ensures the function returns immediately.
+      explanation: Without a base case, the recursion will continue indefinitely until a runtime error occurs.
+      -> marked answer WRONG
+#12  HTTP 200  8.9 s  topic "recursion"  answerIndex in range: yes  marked answers right (our check): 2/3
+   Q1 Which statement best describes how recursion works in Java?
+        0) It uses loops to repeat actions.
+      * 1) It calls the same method again until a base case is reached.
+        2) It creates new objects in memory for every step.
+        3) It requires an external function to complete the task.
+      explanation: A recursive method calls itself to solve a problem.
+      -> marked answer RIGHT
+   Q2 What is the primary purpose of a 'base case' in a recursive function?
+      * 0) The part of the code that performs the actual calculation.
+        1) The initial call made by the main method to start execution.
+        2) The stopping condition that ends the recursive calls.
+        3) An optional feature that improves program performance.
+      explanation: The base case is the condition that stops the recursion and prevents infinite loops.
+      -> marked answer WRONG
+   Q3 What is a common runtime error that can occur with deep recursion?
+        0) It happens when a method calls another unrelated library function.
+        1) It occurs when the variable types in the method do not match.
+      * 2) It happens when too many recursive calls occur without reaching the base case.
+        3) It is an error that only happens during compilation, not runtime.
+      explanation: A stack overflow occurs when too many recursive calls are made before the base case is reached.
+      -> marked answer RIGHT
+#13  HTTP 200  8.8 s  topic "Recursion"  answerIndex in range: yes  marked answers right (our check): 0/3
+   Q1 What defines a recursive method in Java?
+        0) It repeats the same block of code without calling itself.
+      * 1) It calls another entirely different function in the program.
+        2) It calls itself with modified parameters until a base case is reached.
+        3) It runs infinitely until the system stops the process manually.
+      explanation: A recursive method calls itself to solve a problem by breaking it into smaller subproblems.
+      -> marked answer WRONG
+   Q2 What happens if a recursive method in Java lacks a base case?
+        0) The programmer can remove the base case to make the code faster.
+        1) A base case is never required for recursive functions in Java.
+      * 2) Missing a base case leads to a logical error but not a runtime crash.
+        3) Recursion works without a base case if the input array is empty.
+      explanation: Without a stopping condition, recursion will cause a StackOverflowError because it consumes stack memory indefinitely.
+      -> marked answer WRONG
+   Q3 In a typical recursive factorial function, which element controls the flow toward the base case?
+        0) A variable that remains constant throughout all recursive calls.
+        1) A variable that increases to reach the base case immediately.
+        2) The specific value returned by the function as its final result.
+      * 3) A variable that stores the total sum of all previous iterations.
+      explanation: The parameter that reduces toward the base case (e.g., n-1) is often called the 'control' or 'progress' variable.
+      -> marked answer WRONG
+#14  HTTP 200  10.2 s  topic "Recursion"  answerIndex in range: yes  marked answers right (our check): 2/3
+   Q1 What is the base case in a recursive method?
+        0) It is a function that calls itself repeatedly without stopping.
+        1) It is the initial value passed to the recursive function before any calls occur.
+      * 2) It is the condition or statement that defines when the recursive function should stop calling itself.
+        3) It is an optional part of recursion that improves code readability but does not affect execution.
+      explanation: The base case stops the recursion from running infinitely.
+      -> marked answer RIGHT
+   Q2 Which component of recursion handles the actual work for the smaller sub-problem?
+        0) It is the condition that stops the recursion from continuing indefinitely.
+      * 1) It is the part of the function that calls itself with modified arguments to make progress toward the base case.
+        2) It is the final result returned by the function after all recursive calls have resolved.
+        3) It is a feature found only in languages like Python and not in Java.
+      explanation: The recursive step performs the partial work needed to solve the problem for a smaller input.
+      -> marked answer RIGHT
+   Q3 Why is a base case essential in a Java recursive method?
+        0) Recursion cannot be used in Java because it lacks a native stack implementation.
+        1) The base case is optional in recursion; omitting it usually results in correct but slower performance.
+        2) The base case must decrement or increment the input parameter to ensure progress toward termination.
+      * 3) A base case is required only for tail-recursive functions, not standard recursive designs.
+      explanation: Without a base case, the function will eventually cause a StackOverflowError.
+      -> marked answer WRONG
+#15  HTTP 200  8.4 s  topic "Recursion"  answerIndex in range: yes  marked answers right (our check): 2/3
+   Q1 In Java, what is the purpose of the base case in a recursive method?
+        0) It is a method that only has one line of code.
+        1) It is the condition that defines when the recursion should stop.
+      * 2) It is a function that can be called directly without arguments.
+        3) It is a type of loop that runs while a condition is true.
+      explanation: The base case stops the recursive calls to prevent infinite loops.
+      -> marked answer WRONG
+   Q2 What must happen inside a recursive method to make it work correctly?
+        0) They call another completely different method.
+        1) They stop executing immediately after the first line.
+        2) They use a do-while loop instead of function calls.
+      * 3) They call themselves with modified parameters until the base case is met.
+      explanation: Recursive methods must call themselves to continue the process.
+      -> marked answer RIGHT
+   Q3 What is the typical base case condition when calculating n! (n factorial) in Java?
+        0) 0!
+      * 1) 1
+        2) n
+        3) -1
+      explanation: A factorial of 0 or 1 is simply 1, which acts as the stopping point for the calculation.
+      -> marked answer RIGHT
+#16  HTTP 200  8.5 s  topic "Recursion"  answerIndex in range: yes  marked answers right (our check): 2/3
+   Q1 Which Java concept describes a method calling itself to solve a problem?
+        0) A method that repeats its own execution logic
+      * 1) A function defined inside another function
+        2) A method that only runs once before exiting
+        3) A loop that uses a fixed number of iterations
+      explanation: The method calls itself until a specific condition stops the repetition.
+      -> marked answer WRONG
+   Q2 In a recursive function, what is the primary purpose of the base case?
+        0) The point where the recursion starts
+        1) The variable being passed down through calls
+        2) The final result returned by the last call
+      * 3) The condition that stops further recursive calls
+      explanation: The base case is the condition that stops the recursive calls from continuing indefinitely.
+      -> marked answer RIGHT
+   Q3 Why is a base case critical in every recursive solution?
+        0) It allows for faster execution than loops
+        1) It reduces the amount of memory used
+      * 2) It prevents infinite recursion and stack overflows
+        3) It enables the method to access local variables
+      explanation: Without the base case, a recursive program will run infinitely and cause a stack overflow.
+      -> marked answer RIGHT
+#17  HTTP 200  9.2 s  topic "recursion"  answerIndex in range: yes  marked answers right (our check): 2/3
+   Q1 What is the primary characteristic of a recursive function in Java?
+        0) It solves the problem using only loops.
+      * 1) It calls itself repeatedly until a base case is reached.
+        2) It uses external libraries to handle recursion.
+        3) It requires the programmer to write separate code for every level.
+      explanation: A recursive function calls itself to solve a problem by breaking it down into smaller instances of the same problem.
+      -> marked answer RIGHT
+   Q2 Why is a 'base case' essential in a Java recursive function?
+      * 0) It is the part that performs the actual calculation for the current level.
+        1) It defines the stopping condition to prevent infinite recursion.
+        2) It is an optional feature that can be removed if needed.
+        3) It handles multiple threads within a single recursive call.
+      explanation: The base case prevents infinite loops by defining a stopping condition where the recursion stops.
+      -> marked answer WRONG
+   Q3 What error typically occurs if a Java recursive function lacks a proper base case?
+        0) It happens when the base case is never reached, causing infinite execution.
+        1) It results from calling too many methods in a single thread.
+      * 2) It occurs when the recursion depth exceeds the stack size limit.
+        3) It is caused by missing semicolons at the end of recursive lines.
+      explanation: Stack overflow errors occur when the recursion depth exceeds the memory limit allocated for the call stack.
+      -> marked answer RIGHT
+#18  HTTP 200  11.6 s  topic "Recursion"  answerIndex in range: yes  marked answers right (our check): 1/3
+   Q1 What is the primary purpose of a 'base case' in a recursive function?
+        0) A recursive method always needs a base case to prevent an infinite loop.
+      * 1) A recursive method always needs a base case to stop the process and return a value.
+        2) The base case is optional if the recursion depth is limited by memory.
+        3) The base case is only needed when working with arrays or strings.
+      explanation: The base case stops infinite recursion by defining a condition that returns a result without further function calls.
+      -> marked answer RIGHT
+   Q2 What is a necessary condition for avoiding infinite recursion in Java?
+        0) The recursive call must make progress toward the base case by using a strictly smaller input.
+        1) The recursive call can use any value as long as it is not zero.
+        2) The recursion stops only when the function is explicitly called again.
+      * 3) The function must modify global variables to terminate its execution.
+      explanation: Each call must use a smaller input size to eventually reach the base case.
+      -> marked answer WRONG
+   Q3 Which error message might you see in your console if your Java recursive function has no base case?
+        0) A StackOverflowError happens if you try to call a method inside another method.
+        1) A StackOverflowError can occur if too much recursion depth is reached and the stack fills up.
+      * 2) A StackOverflowError is triggered when a loop variable exceeds its integer limit.
+        3) A StackOverflowError only occurs when working with primitive data types.
+      explanation: Stack overflow occurs when too many recursive calls are made without hitting the base case.
+      -> marked answer WRONG
+#19  HTTP 200  9.7 s  topic "recursion"  answerIndex in range: yes  marked answers right (our check): 2/3
+   Q1 What is the primary purpose of a base case in a recursive function?
+        0) It allows the program to run indefinitely without crashing.
+      * 1) It defines the simplest subproblem that returns a result directly.
+        2) It ensures variables are initialized before the function starts.
+        3) It creates new memory space for every call in the heap.
+      explanation: The base case stops the infinite recursion by defining a stopping condition.
+      -> marked answer RIGHT
+   Q2 What happens if a recursive function lacks a proper base case?
+        0) Recursion only uses heap memory and never touches the stack.
+        1) The stack size remains constant regardless of the number of recursive calls.
+      * 2) Excessive recursion can lead to a StackOverflowError due to limited stack space.
+        3) Java compilers automatically optimize all recursive calls into iteration.
+      explanation: The execution stack grows as each function call adds its own frame until the base case is reached.
+      -> marked answer RIGHT
+   Q3 In a typical recursive algorithm solving a problem, how does the input parameter behave?
+        0) The function ignores all input arguments and calculates based on fixed constants.
+        1) A new argument is added to the function signature in every subsequent call.
+        2) The argument is modified or simplified in each call until the base case is met.
+      * 3) The parameter remains unchanged throughout the entire sequence of recursive calls.
+      explanation: The parameter is typically passed down in each step until it reaches the base case value.
+      -> marked answer WRONG
+#20  HTTP 200  8.8 s  topic "Recursion"  answerIndex in range: yes  marked answers right (our check): 2/3
+   Q1 What is the essential component required in every recursive function in Java?
+        0) It uses loops instead of function calls.
+      * 1) It includes a base case that stops the recursion.
+        2) It requires static variables to store state.
+        3) It must call itself with larger input values.
+      explanation: Recursion stops when a specific condition is met to prevent infinite execution.
+      -> marked answer RIGHT
+   Q2 What happens when a recursive method reaches its base case?
+      * 0) It calls itself infinitely without stopping.
+        1) It relies on external libraries to finish the task.
+        2) It calls itself repeatedly until a base case is reached.
+        3) It uses threads to handle the sub-problems simultaneously.
+      explanation: The method eventually returns a value or completes its execution to stop the recursion chain.
+      -> marked answer WRONG
+   Q3 What is a common risk associated with deep recursive functions in Java?
+        0) It uses constant memory regardless of input size.
+      * 1) It uses linear or more memory as the recursion depth increases.
+        2) It releases memory immediately after the first call.
+        3) It avoids using the call stack entirely.
+      explanation: The stack memory usage grows with each call until the maximum limit is reached.
+      -> marked answer RIGHT
+#21  HTTP 200  9.4 s  topic "Recursion"  answerIndex in range: yes  marked answers right (our check): 2/3
+   Q1 What is the primary characteristic of a recursive method in Java?
+        0) It uses loops to repeat actions until a condition is met.
+      * 1) It calls itself with modified parameters to break down the problem.
+        2) It relies on external libraries to perform repeated tasks.
+        3) It requires a separate thread to execute multiple times.
+      explanation: A recursive method calls itself to solve a problem.
+      -> marked answer RIGHT
+   Q2 In a recursive algorithm, what is the purpose of the base case?
+      * 0) It is the condition that triggers the first call to the function.
+        1) It is the part of the code where the method calls itself.
+        2) It is the final step that returns the accumulated result to the user.
+        3) It is an infinite loop that prevents the program from exiting.
+      explanation: The base case stops the recursion by returning a value without calling itself again.
+      -> marked answer WRONG
+   Q3 What happens if a recursive method lacks a proper base case?
+        0) It causes the program to run faster than an iterative solution.
+        1) It allows the function to handle very large inputs without memory issues.
+        2) It eliminates the need for any parameters in the function definition.
+      * 3) It leads to infinite recursion and eventually a StackOverflowError.
+      explanation: Without a base case, the function will call itself indefinitely until a stack overflow error occurs.
+      -> marked answer RIGHT
+#22  HTTP 200  8.2 s  topic "Recursion"  answerIndex in range: yes  marked answers right (our check): 1/3
+   Q1 What is the primary purpose of a base case in a recursive method?
+        0) It calls itself repeatedly until it finds a result.
+      * 1) It is the condition that defines when to stop calling the function.
+        2) It is an infinite loop used to optimize performance.
+        3) It handles errors that occur during recursive execution.
+      explanation: The base case stops the recursion from running forever.
+      -> marked answer RIGHT
+   Q2 What typically happens if a recursive function lacks a proper base case?
+        0) The function returns too many values at once.
+        1) The program tries to call the same method with identical arguments.
+        2) There are no base cases defined in the code.
+      * 3) The Java Virtual Machine runs out of heap space storing all active stack frames.
+      explanation: A stack overflow occurs when the recursion depth exceeds the memory limit.
+      -> marked answer WRONG
+   Q3 Which option best describes the essential mechanism of recursion in Java?
+      * 0) A method calling another completely different method in the same class.
+        1) A loop structure that iterates through an array until it ends.
+        2) A static method accessing non-static members of the current object.
+        3) The program terminating immediately after printing the first line of output.
+      explanation: Recursion is defined by a method calling itself with modified parameters to approach the base case.
+      -> marked answer WRONG
+#23  HTTP 200  9.5 s  topic "Recursion"  answerIndex in range: yes  marked answers right (our check): 2/3
+   Q1 What is the essential characteristic of a recursive method in Java?
+        0) It calls a different method to solve the problem.
+      * 1) It calls itself with modified arguments to approach a base case.
+        2) It uses a loop structure to repeat operations without stopping.
+        3) It relies on external libraries to perform repeated calculations.
+      explanation: A recursive method must call itself to continue the execution logic.
+      -> marked answer RIGHT
+   Q2 What is the primary purpose of a base case in recursion?
+        0) It allows the program to run indefinitely without stopping.
+        1) It is an optional part of any recursive function design.
+      * 2) It defines the condition under which the method stops calling itself.
+        3) It handles errors that occur when the recursion depth exceeds limits.
+      explanation: The base case prevents infinite recursion by defining when the function should stop calling itself.
+      -> marked answer RIGHT
+   Q3 What exception might occur in Java if a recursive method lacks a proper base case?
+      * 0) This error happens when you try to access an object that is not initialized.
+        1) A StackOverflowError occurs if there is no base case and the recursion never terminates.
+        2) A NullPointerException arises when a method tries to use a null reference.
+        3) An ArrayIndexOutOfBounds error appears when accessing an array out of its bounds.
+      explanation: StackOverflowError occurs when too many recursive calls are made before reaching the base case.
+      -> marked answer WRONG
+#24  HTTP 200  8.8 s  topic "recursion"  answerIndex in range: yes  marked answers right (our check): 3/3
+   Q1 What is the primary purpose of a base case in a recursive Java method?
+        0) When a method calls itself
+      * 1) A condition that halts further recursive calls
+        2) The final line of a recursive function
+        3) A variable set to zero in every iteration
+      explanation: The base case is the condition that stops the recursion so it doesn't run forever.
+      -> marked answer RIGHT
+   Q2 Which description best defines the nature of recursion?
+      * 0) Dividing a single large problem into many distinct sub-problems
+        1) Solving a simple problem step-by-step without repeating logic
+        2) Using an array to store intermediate calculation results
+        3) Creating multiple threads to execute code in parallel
+      explanation: Recursion works by breaking a complex problem into smaller versions of the same problem.
+      -> marked answer RIGHT
+   Q3 What typically happens if a recursive Java method lacks a proper base case?
+        0) The method returns a value that is too large for an integer
+        1) The program runs slower than a non-recursive version by 50%
+      * 2) A runtime error triggered by infinite recursion without a stopping condition
+        3) An exception thrown when trying to access a null object reference
+      explanation: StackOverflowError occurs when the call stack fills up because there is no base case to stop the execution.
+      -> marked answer RIGHT
+#25  HTTP 200  6.5 s  topic "Recursion"  answerIndex in range: yes  marked answers right (our check): 1/3
+   Q1 What is the primary mechanism used by a recursive method in Java?
+        0) It loops through an array repeatedly.
+      * 1) It calls itself to avoid using stack memory.
+        2) It repeats a process until it reaches a base case.
+        3) It relies entirely on external functions.
+      explanation: A recursive method calls itself to solve a smaller instance of the same problem.
+      -> marked answer WRONG
+   Q2 Which part of a recursive Java method determines when the recursion stops?
+      * 0) The line where the function calls itself.
+        1) The initial value passed to the first call.
+        2) The stopping condition that ends the execution.
+        3) The variable that stores the result.
+      explanation: A base case is the condition that stops the recursion and prevents infinite loops.
+      -> marked answer WRONG
+   Q3 Under what circumstances should you choose recursion over iteration in Java?
+        0) When performance is strictly critical for large loops.
+        1) When you need to iterate through a list sequentially.
+        2) When the solution requires complex state management.
+      * 3) When a problem can be broken into simpler, self-similar steps.
+      explanation: Recursion is best used when the problem naturally breaks down into smaller identical subproblems.
+      -> marked answer RIGHT
+
+### Things we tried that did NOT help (kept honest; the final code uses none of them)
+- explanation BEFORE answerIndex in the record (QuizQuestion(question, options, explanation, answerIndex)), same quiz.st:
+  30 quizzes: 28 parsed, 2 answered HTTP 500 because our check caught an answerIndex outside the options
+  ("java.lang.IllegalStateException: The AI marked an answer that doesn't exist. Please try again.");
+  marked answers right 54 of 84 (64%), no better than the plan's order. -> kept the plan's order.
+- quiz.st saying "Then give answerIndex: 0 for the first option, 1 for the second, 2 for the third, 3 for the fourth.":
+  10 quizzes, marked answers right 12 of 30 (40%): worse.
+- an extra String answer field before the options: the model leaked JSON into the field; only 5 of 30 answerIndex values
+  pointed at that answer: much worse.
+
+### A bigger model: qwen3.5:9b (normal mode, --spring.ai.ollama.chat.model=qwen3.5:9b, same code)
+10 of 10 parsed, all answerIndex in range, marked answers right 27 of 30 (90%), 13.1-18.3 s per quiz.
+$ ollama list   ->  qwen3.5:9b    56671c2ab938    6.6 GB   (the 4B model is 3.3 GB)
+#1  HTTP 200  18.3 s  topic "Java Recursion Basics"  answerIndex in range: yes  marked answers right (our check): 3/3
+   Q1 What is the primary purpose of a 'base case' in a recursive method?
+        0) It calls itself without any conditions.
+        1) It always returns a random value.
+      * 2) It provides a condition to stop further recursive calls.
+        3) It is required to be placed before the recursive call.
+      explanation: A base case stops the recursion to prevent infinite loops.
+      -> marked answer RIGHT
+   Q2 What happens if a recursive method lacks a base case?
+        0) The method returns null unexpectedly.
+      * 1) The program crashes due to excessive memory usage from too many nested calls.
+        2) The loop inside the recursion never terminates.
+        3) The compiler cannot find a return statement.
+      explanation: A stack overflow occurs because memory runs out when the call stack grows too large.
+      -> marked answer RIGHT
+   Q3 What characterizes a 'tail recursive' function?
+        0) The method must be declared as 'static'.
+        1) The recursive call must happen before any other code execution.
+        2) The method can only accept one parameter.
+      * 3) The recursive call is the very last action in the method before returning.
+      explanation: A tail call is the last operation in the function, allowing some compilers to optimize the stack usage.
+      -> marked answer RIGHT
+#2  HTTP 200  15.3 s  topic "Recursion in Java"  answerIndex in range: yes  marked answers right (our check): 3/3
+   Q1 What is essential for a recursive method to work correctly?
+        0) It should only use loops instead of function calls.
+        1) It must call another different method every time.
+      * 2) It needs a condition to stop the recursion (base case).
+        3) It should increase the input size in every step.
+      explanation: A recursive method must have a base case to stop calling itself and prevent infinite recursion.
+      -> marked answer RIGHT
+   Q2 In a recursive function, what is the 'base case'?
+        0) The part of the code that calls the method again.
+      * 1) The condition that defines when to stop the recursion.
+        2) The initial call made by the programmer.
+        3) The variable used to count how many times the method is called.
+      explanation: The base case is the simple condition that stops the recursion and returns a value without making further calls.
+      -> marked answer RIGHT
+   Q3 What happens if a recursive method does not have a proper base case?
+        0) When the method returns a null value.
+        1) When the base case is never reached due to infinite recursion.
+        2) When the program runs too slowly.
+      * 3) When the call stack grows too deep and crashes the application.
+      explanation: A stack overflow occurs when the recursion depth exceeds the maximum limit allowed by the system's call stack.
+      -> marked answer RIGHT
+#3  HTTP 200  13.1 s  topic "Recursion in Java"  answerIndex in range: yes  marked answers right (our check): 3/3
+   Q1 What is the fundamental requirement for a Java method to be considered recursive?
+        0) It calls the main method.
+      * 1) It calls itself.
+        2) It uses a loop statement.
+        3) It calls a static helper method.
+      explanation: A recursive method must call itself with a different argument to progress toward a solution.
+      -> marked answer RIGHT
+   Q2 What is the critical purpose of a 'base case' in a recursive function?
+        0) It initializes the loop counter.
+        1) It handles runtime exceptions.
+      * 2) It defines the condition where recursion stops.
+        3) It imports necessary packages.
+      explanation: The base case provides a stopping condition that prevents the method from calling itself indefinitely.
+      -> marked answer RIGHT
+   Q3 Which specific exception is most likely to occur if a recursive method lacks a proper base case?
+      * 0) StackOverflowError
+        1) NullPointerException
+        2) ArrayIndexOutOfBoundsException
+        3) NumberFormatException
+      explanation: Without a base case, the method calls itself forever, eventually causing a StackOverflowError.
+      -> marked answer RIGHT
+#4  HTTP 200  16.1 s  topic "Recursion in Java"  answerIndex in range: yes  marked answers right (our check): 3/3
+   Q1 What is the most critical requirement for a recursive method in Java?
+        0) It automatically stops after ten calls.
+        1) It calls itself until it runs out of memory.
+      * 2) It requires a base condition that returns a value without calling itself again.
+        3) It only works if declared as public.
+      explanation: A recursive method must have a base case to stop the recursion and prevent infinite loops.
+      -> marked answer RIGHT
+   Q2 When does a Java program crash with a StackOverflowError due to recursion?
+      * 0) It happens when the base case is never reached and the call stack grows too large.
+        1) It happens because the method is declared as static.
+        2) It happens when a variable is not initialized inside the loop.
+        3) It happens when the return type is void.
+      explanation: Stack overflow occurs when the base case is missing or unreachable, causing the call stack to exceed its limit.
+      -> marked answer RIGHT
+   Q3 What is a common disadvantage of using recursion compared to iteration?
+        0) Recursive methods are always faster than iterative ones.
+        1) Iterative methods always produce better code quality than recursive ones.
+        2) Recursive methods cannot handle large numbers of elements.
+      * 3) Iterative solutions typically use less memory than equivalent recursive solutions.
+      explanation: Iterative solutions generally use less memory because they do not accumulate multiple stack frames for each step.
+      -> marked answer RIGHT
+#5  HTTP 200  15.2 s  topic "Recursion in Java"  answerIndex in range: yes  marked answers right (our check): 3/3
+   Q1 What is essential for a recursive method in Java?
+        0) It always uses more memory than iteration.
+      * 1) It requires a base case condition to stop the function calls.
+        2) The first line of code in the method must return a value.
+        3) A recursive call must happen before any other code.
+      explanation: Recursion stops when a specific base case is met to prevent infinite loops.
+      -> marked answer RIGHT
+   Q2 What happens internally with every additional level of recursion?
+        0) The memory usage remains constant regardless of depth.
+        1) It uses static variables to store intermediate states.
+      * 2) Each call creates a new execution context on the call stack.
+        3) Java automatically optimizes all recursive calls into iteration.
+      explanation: Each recursive call adds a frame to the call stack until the base case is reached.
+      -> marked answer RIGHT
+   Q3 How does a Java method demonstrate recursion?
+        0) It calls another method with the same name but different parameters.
+      * 1) It invokes itself directly within its own code.
+        2) It declares a variable named 'recurse' that holds a reference to itself.
+        3) It returns null when the input is not valid.
+      explanation: The method must call itself in order to be classified as recursive.
+      -> marked answer RIGHT
+#6  HTTP 200  15.8 s  topic "Recursion"  answerIndex in range: yes  marked answers right (our check): 2/3
+   Q1 What is the most critical requirement for a valid recursive method in Java?
+        0) It is always faster than iteration for simple tasks.
+      * 1) It requires a base case to terminate the recursion.
+        2) It can only be used with static methods in Java.
+        3) It automatically runs out of memory after 10 calls.
+      explanation: A recursive method must have a base case to stop the infinite chain of calls.
+      -> marked answer RIGHT
+   Q2 At what point does a specific recursive call's local variables and parameters get removed from memory?
+        0) When the main method finishes execution.
+        1) Immediately after the function returns to the caller.
+      * 2) Only when the program explicitly clears memory.
+        3) It is never removed until the entire program ends.
+      explanation: The stack frame containing local variables and parameters is popped off the call stack once that specific return happens.
+      -> marked answer WRONG
+   Q3 How does Java handle variable scope in a recursive method during execution?
+      * 0) Every recursive call gets its own fresh copy of local variables and parameters.
+        1) All calls share the same instance of local variables until the function ends.
+        2) Variables are deleted immediately after the calculation is done.
+        3) Java uses global variables to store the state between recursive steps.
+      explanation: Each recursive call creates a new frame on the stack with its own set of variables.
+      -> marked answer RIGHT
+#7  HTTP 200  13.7 s  topic "Java Recursion Basics"  answerIndex in range: yes  marked answers right (our check): 2/3
+   Q1 What is the most essential characteristic of a recursive method in Java?
+        0) It loops indefinitely until a memory error occurs.
+        1) It only calls external helper functions.
+      * 2) It calls itself with a simpler version of the problem.
+        3) It uses a `while` loop inside its body.
+      explanation: A recursive method must call itself with a modified parameter to progress toward the base case.
+      -> marked answer RIGHT
+   Q2 Why is a 'base case' absolutely necessary in a recursive function?
+      * 0) A base case that stops the recursion.
+        1) A loop statement inside the function.
+        2) Calling the method with the same arguments every time.
+        3) Using static variables to store state.
+      explanation: Without a base case, recursion will eventually cause a StackOverflowError due to excessive stack frames.
+      -> marked answer RIGHT
+   Q3 If you declare a recursive static helper method inside a public class without specifying an access modifier, what is its default visibility?
+        0) private
+        1) package-private (default)
+        2) protected
+      * 3) public
+      explanation: The default visibility modifier allows the method to be called by any class in the same package.
+      -> marked answer WRONG
+#8  HTTP 200  17.9 s  topic "recursion"  answerIndex in range: yes  marked answers right (our check): 3/3
+   Q1 What is the most critical component required in every recursive method?
+        0) A recursive method must have multiple base cases.
+        1) A recursive method calls itself until it crashes.
+      * 2) A recursive method needs a base case to stop the recursion.
+        3) Recursion works by replacing loops with stack overflow errors.
+      explanation: Recursion ends when a specific stopping condition is met to prevent infinite loops.
+      -> marked answer RIGHT
+   Q2 In a recursive function that calculates a factorial, what does the 'return' statement do after the recursive call?
+        0) A local variable must be declared at the start of the method.
+      * 1) The return value of the current call is returned to the previous caller.
+        2) The method must print the result before returning.
+        3) The base case must return null to indicate completion.
+      explanation: The return statement passes the computed result of the recursive call back up the call stack.
+      -> marked answer RIGHT
+   Q3 What happens if you write a recursive method without defining a base case?
+      * 0) Missing a base case causes infinite recursion and a StackOverflowError.
+        1) Missing a base case makes the program run faster but produce wrong results.
+        2) Missing a base case is ignored by the Java compiler.
+        3) Missing a base case automatically returns 0 at the end of execution.
+      explanation: Without a base case, the method keeps calling itself indefinitely until the system runs out of memory.
+      -> marked answer RIGHT
+#9  HTTP 200  17.6 s  topic "Recursion Basics in Java"  answerIndex in range: yes  marked answers right (our check): 2/3
+   Q1 What is the essential requirement for a method in Java to be considered recursive?
+        0) It calls itself directly to solve the current sub-problem.
+        1) It uses loops to repeat the calculation until finished.
+      * 2) It must call itself with a modified argument to approach the base case.
+        3) It delegates logic to an external library function without self-reference.
+      explanation: Recursion works by solving a smaller version of the same problem until reaching a base case.
+      -> marked answer RIGHT
+   Q2 What happens if a recursive method in Java never reaches its base case?
+      * 0) A defined base case (stopping condition) is reached.
+        1) The method must be declared as static.
+        2) The return type must be void to prevent infinite loops.
+        3) The method must call itself exactly twice per execution.
+      explanation: Without a base case, the recursion has no stopping condition and will run until a stack overflow occurs.
+      -> marked answer WRONG
+   Q3 How does a recursive method typically combine results from smaller sub-problems?
+        0) The result is stored in a global variable for all calls.
+        1) The main method automatically collects the final output.
+      * 2) The return value from the recursive call is used to compute the current step's result.
+        3) The JVM prints the answer automatically when the last call returns.
+      explanation: In recursion, the return value of the smaller sub-problem is passed back up the call stack to solve the larger problem.
+      -> marked answer RIGHT
+#10  HTTP 200  16.6 s  topic "Java Recursion"  answerIndex in range: yes  marked answers right (our check): 3/3
+   Q1 What is essential for a recursive function in Java?
+        0) It calls itself with the same parameters every time.
+        1) It uses a loop inside the method definition.
+        2) It modifies global variables to change state.
+      * 3) It must have a base case to stop calling itself.
+      explanation: Recursion stops when a base case is reached, preventing infinite loops.
+      -> marked answer RIGHT
+   Q2 Which code snippet correctly implements a recursive factorial function?
+        0) public static int factorial(int n) { return n; }
+      * 1) public static int factorial(int n) { if (n == 0) return 1; else return n * factorial(n - 1); }
+        2) public static int factorial(int n) { return n * (n - 1); }
+        3) public static int factorial(int n) { while (n > 0) n--; }
+      explanation: The factorial of n is defined as n multiplied by the factorial of n-1.
+      -> marked answer RIGHT
+   Q3 In a recursive method that processes a List, where should the base case typically go?
+        0) return null;
+        1) return new ArrayList<>();
+      * 2) if (list.isEmpty()) return new ArrayList<>(); else...
+        3) return list.get(0);
+      explanation: An empty sequence is the base case that returns an empty list without recursion.
+      -> marked answer RIGHT
+
+## Step 12: the AI assistant's App.jsx (prompt: chat-ui/PROMPT-2.md), chat page, normal mode
+The App.jsx in this folder is the answer, unchanged. Fixes needed: none (it worked the first time).
+npm run lint: 2 warnings (unused 'err' in two catch blocks), harmless. npm run build: OK.
+Type "recursion", click "Quiz me": the "Quiz me on recursion" bubble, the thinking dots, then 3 quiz cards. Browser errors: none.
+It took 9 tries to get a quiz whose 3 marked answers were all right (try 9 is shown in the video; tries 1-8 were
+closed without clicking). Quiz times in the page: 10.1-15.5 s. Marked answers right over the 9 tries: 15 of 27.
+In try 9 we clicked card 1, option 2 ("It calls itself repeatedly until a base case is reached.") -> green, "Correct! ...",
+then card 2, option 4 ("It can be omitted if the problem size is small enough.") -> red, the right option green, "Not quite. ..."
+page try 1  HTTP 200  14.5 s  topic "recursion"  answerIndex in range: yes  marked answers right (our check): 1/3
+   Q1 What is the fundamental behavior of a recursive method in Java?
+        0) It uses loops instead of function calls.
+      * 1) It calls itself repeatedly until a base case is reached.
+        2) It relies on external libraries for calculation.
+        3) It requires multiple threads to execute.
+      explanation: A recursive method calls itself to solve smaller instances of the same problem.
+      -> marked answer RIGHT
+   Q2 Why is a base case essential in Java recursion?
+        0) It stops automatically after 10 calls.
+        1) It requires a base case to prevent infinite recursion.
+      * 2) It can run forever without issues.
+        3) It depends on garbage collection to stop.
+      explanation: Without a base case, a recursive method will keep calling itself indefinitely until the stack overflows.
+      -> marked answer WRONG
+   Q3 What happens if a Java program lacks a proper base case in recursion?
+        0) The heap memory becomes full.
+        1) The base case is never found.
+        2) The variable types conflict.
+      * 3) The compiler generates an error.
+      explanation: The stack size limit is reached when too many recursive frames are created without unwinding.
+      -> marked answer WRONG
+page try 2  HTTP 200  15.5 s  topic "Recursion in Java"  answerIndex in range: yes  marked answers right (our check): 2/3
+   Q1 What is the defining characteristic of a recursive method in Java?
+        0) The method calls another different method in the same class.
+      * 1) The method calls itself until it reaches a specific stopping condition.
+        2) The method uses loops like for or while instead of calling itself.
+        3) The recursion stops automatically after ten calls regardless of conditions.
+      explanation: In Java, a method must call itself to be considered recursive.
+      -> marked answer RIGHT
+   Q2 What is the purpose of the 'base case' in a recursive function?
+        0) The condition that determines when the recursion should stop.
+        1) The part of the code that performs the repeated calculation.
+        2) The maximum number of times the method can be called by a user.
+      * 3) The error message shown if too many recursive calls are made.
+      explanation: A base case is essential because it prevents the code from running infinitely.
+      -> marked answer WRONG
+   Q3 What happens if a recursive method in Java does not have a proper base case?
+        0) The method becomes too slow to execute on modern processors.
+        1) The compiler fails to recognize the recursive syntax.
+      * 2) The program crashes due to excessive memory usage from deep recursion.
+        3) The base case is missing, causing a logical error in the output.
+      explanation: Stack overflow occurs when the recursion depth exceeds the memory limit allocated for the call stack.
+      -> marked answer RIGHT
+page try 3  HTTP 200  12.2 s  topic "recursion"  answerIndex in range: yes  marked answers right (our check): 0/3
+   Q1 In Java, what is the definition of a 'base case' in recursion?
+        0) It is a function that calls itself repeatedly without stopping.
+        1) It is the condition that defines when the recursive function should stop calling itself.
+        2) It is the initial value passed to the first call of the function.
+      * 3) It is the step-by-step process where the function solves smaller parts of the problem.
+      explanation: The base case stops the recursion so that it does not run infinitely.
+      -> marked answer WRONG
+   Q2 Which term describes the action inside a recursive function where it calls itself?
+      * 0) It is where the function stops calling itself to prevent infinite loops.
+        1) It is the initial setup of variables before the function starts.
+        2) It is the output value returned directly by the main function call.
+        3) It is the part of the code that calls the same function again with modified parameters.
+      explanation: The recursive call happens after the base case logic to move toward termination.
+      -> marked answer WRONG
+   Q3 Why is a base case critical in a Java recursive method?
+        0) A base case is essential to prevent a StackOverflowError.
+      * 1) Multiple base cases are always required for every recursive function.
+        2) A base case is only needed when the input is very small.
+        3) The base case should call itself but with no arguments.
+      explanation: Without a base case, recursion leads to a StackOverflowError.
+      -> marked answer WRONG
+page try 4  HTTP 200  11.6 s  topic "Recursion"  answerIndex in range: yes  marked answers right (our check): 2/3
+   Q1 What is the primary purpose of a base case in a recursive function?
+        0) It allows the function to run forever.
+      * 1) It defines a condition that ends the recursive calls.
+        2) It is used only for loop statements.
+        3) It increases the complexity of the code.
+      explanation: The base case stops the function from calling itself infinitely.
+      -> marked answer RIGHT
+   Q2 In a recursive function calculating a factorial, what does the parameter usually represent?
+      * 0) It stores the final result of the recursion.
+        1) It typically tracks how many steps remain or changes with each call.
+        2) It acts as a temporary variable for arithmetic operations.
+        3) It is used exclusively in iterative loops.
+      explanation: The parameter usually represents the remaining work to be done at each step.
+      -> marked answer WRONG
+   Q3 What is a common consequence of forgetting to include a base case in a recursive method?
+        0) It improves the performance of the algorithm.
+        1) It makes the code easier to read for beginners.
+        2) It prevents the function from ever executing.
+      * 3) It causes an infinite loop or stack overflow error.
+      explanation: Missing a base case can lead to infinite recursion and a stack overflow.
+      -> marked answer RIGHT
+page try 5  HTTP 200  12.1 s  topic "Recursion"  answerIndex in range: yes  marked answers right (our check): 1/3
+   Q1 What is the primary characteristic of a recursive function in Java?
+        0) A recursive method calls an external function instead of itself.
+      * 1) A recursive method calls itself repeatedly until a base case stops the execution.
+        2) Recursion requires a loop to prevent infinite execution.
+        3) Recursive methods only work with primitive data types like int or double.
+      explanation: A recursive method calls itself to solve a problem by breaking it into smaller instances.
+      -> marked answer RIGHT
+   Q2 Why is a 'base case' essential in a Java recursive method?
+        0) The base case is optional if the method eventually returns.
+        1) A base case is a condition that causes the method to call itself infinitely.
+      * 2) The base case is the initial value passed to the function before any calls.
+        3) A base case is an external library function used by the recursive method.
+      explanation: A base case defines the stopping condition to prevent infinite recursion and ensure termination.
+      -> marked answer WRONG
+   Q3 Which part of the following recursive method represents the parameter that tracks progress?
+      * 0) int count = 0
+        1) void print(int n)
+        2) System.out.println(n);
+        3) if (n <= 0) return;
+      explanation: The first parameter usually holds the current state or value being processed in each step.
+      -> marked answer WRONG
+page try 6  HTTP 200  14.2 s  topic "Java Recursion"  answerIndex in range: yes  marked answers right (our check): 2/3
+   Q1 What is the fundamental definition of recursion in Java?
+        0) A method that modifies its own memory address directly.
+      * 1) A method that calls itself to solve a problem by breaking it down into smaller sub-problems.
+        2) A method that uses loops instead of stack frames to execute code repeatedly.
+        3) A technique where a function is defined outside of the class structure.
+      explanation: Recursion is a programming technique where a method calls itself to solve a problem by breaking it down into smaller sub-problems.
+      -> marked answer RIGHT
+   Q2 What happens if a recursive method in Java does not include a base case?
+        0) The program will execute faster than an iterative solution.
+        1) The recursion will stop automatically after five levels.
+        2) The stack will overflow because there is no condition to stop the repeated function calls.
+      * 3) An infinite loop will only occur in the main method, not in recursive methods.
+      explanation: Without a base case that stops the recursive calls, a program will continue calling itself indefinitely until it runs out of memory.
+      -> marked answer WRONG
+   Q3 Which statement correctly describes a necessary condition for safe recursion in Java?
+      * 0) A recursive method must have a base case that stops the recursion.
+        1) A recursive method can call itself infinitely without issues.
+        2) The order of arguments determines whether recursion is possible.
+        3) Only methods with side effects are allowed to be recursive.
+      explanation: In Java, every method must eventually reach a condition that prevents further self-calls to avoid a StackOverflowError.
+      -> marked answer RIGHT
+page try 7  HTTP 200  15.0 s  topic "Recursion"  answerIndex in range: yes  marked answers right (our check): 2/3
+   Q1 What is the fundamental characteristic of a recursive method in Java?
+        0) A method that calls another completely different method.
+      * 1) A method that calls itself to solve a sub-problem until reaching a base case.
+        2) An infinite loop that prevents the program from running.
+        3) A variable that stores the return value of a function call.
+      explanation: Recursion involves a method calling itself to solve smaller instances of the same problem.
+      -> marked answer RIGHT
+   Q2 Why is a 'base case' necessary in every recursive function?
+      * 0) The condition that defines when the recursive call should stop.
+        1) The step where data is passed from one function to another.
+        2) The variable that holds the final result of the calculation.
+        3) The error message shown if a method does not return anything.
+      explanation: The base case is crucial because it stops the infinite repetition and ensures the recursion terminates.
+      -> marked answer RIGHT
+   Q3 What typically happens if a recursive function in Java fails to reach its base case?
+        0) It allows the compiler to optimize the code execution speed.
+        1) It ensures that memory is allocated for every single step of the calculation.
+        2) It prevents the method from calling itself again, avoiding infinite loops.
+      * 3) It provides a way to handle exceptions thrown during recursion.
+      explanation: Without reaching a base case, the recursion will continue indefinitely until the program crashes.
+      -> marked answer WRONG
+page try 8  HTTP 200  10.1 s  topic "Recursion in Java"  answerIndex in range: yes  marked answers right (our check): 2/3
+   Q1 What is the most critical component of any recursive function?
+        0) A method must always have a recursive call.
+      * 1) A method must have a base case to prevent infinite recursion.
+        2) Variables can be passed only as arguments.
+        3) Recursion requires static variables to work.
+      explanation: The base case stops the function from calling itself infinitely.
+      -> marked answer RIGHT
+   Q2 What part of a recursive function handles the actual computation by calling the method again?
+      * 0) The base case
+        1) The recursive call
+        2) The return statement
+        3) The parameter list
+      explanation: The method calling itself is known as the recursive step or body.
+      -> marked answer WRONG
+   Q3 Why is it necessary for each recursive step to make progress toward the base case?
+        0) The base case solves the problem directly.
+        1) The recursive call solves the problem immediately.
+      * 2) The progress ensures the recursion eventually terminates.
+        3) Static variables track the recursion depth automatically.
+      explanation: Each step in recursion must move closer to solving the problem until the base case is reached.
+      -> marked answer RIGHT
+page try 9  HTTP 200  13.1 s  topic "Recursion"  answerIndex in range: yes  marked answers right (our check): 3/3
+   Q1 What is the primary characteristic of a recursive method in Java?
+        0) It defines itself using other methods.
+      * 1) It calls itself repeatedly until a base case is reached.
+        2) It runs in an infinite loop without stopping.
+        3) It uses a separate thread to execute the code.
+      explanation: A recursive method calls itself to solve a problem by breaking it into smaller sub-problems.
+      -> marked answer RIGHT
+   Q2 What is the purpose of the base case in a recursive function?
+      * 0) It prevents infinite loops and defines when to stop.
+        1) It is the part of the code that performs the actual calculation.
+        2) It is always placed at the very beginning of the function definition.
+        3) It can be omitted if the problem size is small enough.
+      explanation: The base case stops the recursion from happening infinitely by providing a stopping condition.
+      -> marked answer RIGHT
+   Q3 What is a common risk associated with deep recursion in Java?
+        0) It runs faster than an iterative solution for all problems.
+        1) It uses heap memory instead of stack memory.
+      * 2) It can lead to a StackOverflowError due to unlimited depth.
+        3) It automatically converts into a while loop at runtime.
+      explanation: The stack grows deeper with each recursive call, eventually causing a StackOverflowError if not managed correctly.
+      -> marked answer RIGHT
+Same page, "What is recursion?" (Complete beginner), first words 0.69 s, done 2.48 s:
+  Recursion is when a function calls itself to solve a problem. Think of it like a puzzle where each piece fits into the same shape as the whole picture. Here is a small example:
+
+  int count(int n) {
+      if (n == 0) return 0;
+      return 1 + count(n - 1);
+  }
+Screenshots: chat-ui-final-recursion.png, chat-ui-quiz-typed.png, chat-ui-quiz-thinking.png, chat-ui-quiz-cards.png,
+chat-ui-quiz-right.png, chat-ui-quiz-wrong.png
+
+## The episode 3 teaser: no memory yet (normal mode, Complete beginner)
+  session 1: "My name is Priya." (0.37 s / 0.98 s) Hello Priya! It is nice to meet you. I am ready to help you learn Java step by step. What would you like to learn first?
+             "What's my name?"   (0.43 s / 1.31 s) I do not know your name yet because you have not told me. You can tell me your name in our next message. Would you like to try now?
+  session 2 (shown): "My name is Priya." (0.37 s / 0.68 s) Hello Priya! I am Chai your Java tutor here to help you learn step by step. Would you like to start with the first small piece of code?
+             "What's my name?"   (0.48 s / 0.89 s) Hello! I don't know your name yet because you haven't told me. You can tell me now.
+  -> every request starts from zero: the app sends only the system message and the new question.
+
+## CPU only (./mvnw spring-boot:run -Dspring-boot.run.arguments=--spring.ai.ollama.chat.num-gpu=0), final code
+$ ollama stop qwen3.5:4b   (so the first question includes loading the model)
+Chat page, Complete beginner, "What is recursion?" (includes loading the model): first words 4.7 s, done 9.7 s
+  Recursion is when a function calls itself to solve a problem. ... int countUp(int n) { if (n == 0) return 0; return n + countUp(n - 1); }
+Chat page, Complete beginner, "What is an interface?": first words 1.2 s, done 5.3 s ("An interface is like a rulebook ...")
+Chat page, Java developer, "What is an interface?": first words 1.1 s, done 5.3 s ("An interface defines a contract with specific method signatures ...")
+$ curl /stream "What is a class?" complete beginner: 4.0 s ("A class is like a blueprint for making something. ...")
+$ curl /stream "What is a class?" Java developer: 9.0 s ("A class is a blueprint for creating objects that defines shared state via fields and behavior via methods. ..." + a ```java fence)
+5 x /quiz?topic=recursion: 5 of 5 parsed, answerIndex in range 5 of 5, 26.7-36.1 s each, marked answers right 10 of 15.
+#1  HTTP 200  36.1 s  topic "Recursion in Java"  answerIndex in range: yes  marked answers right (our check): 1/3
+   Q1 What does this Java method print?   ``` public static int factorial(int n) {     if (n == 0) return 1;     return n * factorial(n - 1); } int result = factorial(2); System.out.println(result); // What is printed? ```
+        0) 0
+      * 1) 1
+        2) 3
+        3) 4
+      explanation: The code will return 2 because it reaches the base case when n is 0 and returns 1.
+      -> marked answer WRONG
+   Q2 What happens when you run this code?  ``` public static void loop(int n) {     if (n == 10) System.out.println("Stop");     loop(n + 1); // Recursive call adds to n instead of subtracting } loop(5); ```
+        0) It prints an infinite sequence of numbers.
+        1) It crashes with a StackOverflowError.
+        2) It prints 'Hello'.
+      * 3) It prints nothing.
+      explanation: An infinite loop occurs because the recursive call never reaches the base case.
+      -> marked answer WRONG
+   Q3 What is the output of this method call?  ``` public static int sum(int n) {     if (n <= 0) return 0;     return n + sum(n - 1); } sum(3); ```
+        0) It returns the product of numbers from 1 to n.
+        1) It prints each number in a loop.
+      * 2) It returns the sum of numbers from 1 to n.
+        3) It returns the count of even numbers.
+      explanation: The method returns the sum of all numbers from 1 to n because it accumulates results recursively.
+      -> marked answer RIGHT
+#2  HTTP 200  29.1 s  topic "Recursion"  answerIndex in range: yes  marked answers right (our check): 2/3
+   Q1 What is the primary characteristic of a recursive method in Java?
+      * 0) It calls itself to solve a smaller instance of the same problem.
+        1) It loops through an array until it finds the target value.
+        2) It creates a new thread to execute the code in parallel.
+        3) It uses a stack data structure to store temporary variables only.
+      explanation: A recursive method calls itself to solve a smaller instance of the same problem.
+      -> marked answer RIGHT
+   Q2 What happens if you forget to define a base case in your recursive function?
+        0) It prevents infinite loops by forcing termination.
+      * 1) It causes a stack overflow error without a base case.
+        2) It automatically optimizes the execution speed for all inputs.
+        3) It requires a separate loop to handle repeated executions.
+      explanation: Without a base case, a recursive method will keep calling itself indefinitely until the program runs out of memory.
+      -> marked answer RIGHT
+   Q3 Which statement best describes how arguments behave during a recursive call?
+        0) The return type of the method changes dynamically during execution.
+        1) The variable remains constant and acts as a loop counter outside the function.
+      * 2) The parameter is ignored, and the method uses global variables instead.
+        3) The argument passed to the recursive call must always increase in value.
+      explanation: The parameter passed as an argument changes value with each call to drive the recursion toward the base case.
+      -> marked answer WRONG
+#3  HTTP 200  26.7 s  topic "Java Recursion Basics"  answerIndex in range: yes  marked answers right (our check): 3/3
+   Q1 What defines a recursive method in Java?
+        0) It uses loops to repeat code until a condition is met.
+      * 1) It calls itself repeatedly until it reaches a base case.
+        2) It stores data in an array for faster processing.
+        3) It relies on external libraries to handle complex logic.
+      explanation: A recursive method calls itself to solve a smaller instance of the same problem.
+      -> marked answer RIGHT
+   Q2 What is the purpose of a base case in recursion?
+      * 0) The condition that stops the recursion from running indefinitely.
+        1) The function call within a method that invokes itself.
+        2) An array used to store intermediate calculation results.
+        3) The variable holding the final output of the recursive process.
+      explanation: A base case is the simplest version of the problem that can be solved directly without further recursion.
+      -> marked answer RIGHT
+   Q3 What happens if a recursive method in Java has no base case?
+        0) The program will automatically stop after three calls.
+        1) The recursion will work faster without any stopping condition.
+        2) The code will compile but run slower due to repeated calculations.
+      * 3) The program may enter an infinite loop or crash with a StackOverflowError.
+      explanation: Without a base case, a recursive method will call itself infinitely and cause a StackOverflowError.
+      -> marked answer RIGHT
+#4  HTTP 200  28.2 s  topic "Java Recursion"  answerIndex in range: yes  marked answers right (our check): 2/3
+   Q1 What is the most critical component of a recursive function?
+        0) The method needs access to external variables.
+        1) The method calls itself repeatedly without stopping.
+      * 2) The method includes a condition that eventually returns without further recursion.
+        3) The method is always called from another class.
+      explanation: A recursive method must have a base case to stop the infinite loop of function calls.
+      -> marked answer RIGHT
+   Q2 How does recursion solve a problem in terms of problem size?
+        0) It increases the complexity of the problem in every step.
+      * 1) It breaks a complex problem into smaller instances of itself.
+        2) It relies on arrays to store intermediate results permanently.
+        3) It requires the use of loops to solve sub-problems.
+      explanation: Recursion reduces the problem size with each call until it reaches the base case.
+      -> marked answer RIGHT
+   Q3 Which data structure implicitly manages the execution flow of recursive calls in Java?
+      * 0) Recursion uses a queue to store pending function states.
+        1) Recursion relies on a linked list for memory allocation.
+        2) Recursion utilizes a stack to save return addresses and local variables.
+        3) Recursion operates directly in the global heap without auxiliary structures.
+      explanation: A stack is the standard data structure used by the JVM to manage recursive calls.
+      -> marked answer WRONG
+#5  HTTP 200  29.3 s  topic "Recursion"  answerIndex in range: yes  marked answers right (our check): 2/3
+   Q1 Which of the following best describes how a recursive method works in Java?
+        0) It uses loops to repeat steps until completion.
+      * 1) It is a method that calls itself to solve a problem.
+        2) It requires an external function to handle each step sequentially.
+        3) It executes only once and then stops immediately.
+      explanation: A recursive method calls itself to solve a problem by breaking it down into smaller instances of the same problem.
+      -> marked answer RIGHT
+   Q2 What is the primary purpose of a 'base case' in a recursive algorithm?
+      * 0) The scenario where the function calls itself to make progress toward the solution.
+        1) The initial value passed into the recursive function before it starts executing.
+        2) The stopping condition that prevents infinite recursion.
+        3) The variable that holds the result after the recursion finishes.
+      explanation: The base case is the condition that stops the recursion from continuing indefinitely.
+      -> marked answer WRONG
+   Q3 What is a common runtime error that occurs when implementing recursion incorrectly in Java?
+        0) It happens when the program tries to access an array index out of bounds.
+        1) It occurs if the base case is reached before the recursive calls are executed.
+        2) It results from the compiler failing to compile the recursive syntax.
+      * 3) It can happen if there is no base case or if the base case is never met.
+      explanation: Stack overflow errors occur when too many stack frames accumulate due to missing or incorrect base cases.
+      -> marked answer RIGHT
+Chat page: "My name is Priya." 0.86 s / 2.70 s, "What's my name?" 1.13 s / 3.55 s ("I don't know your name yet because you haven't told me. ...")
+Chat page: Quiz me (recursion): 3 cards after 29.5 s.
+$ ollama ps
+NAME          ID              SIZE      PROCESSOR    CONTEXT    UNTIL
+qwen3.5:4b    d8b0f5e9760c    3.9 GB    100% CPU     8192       4 minutes from now
+
+## Checks
+$ ./mvnw test   -> Tests run: 1, Failures: 0, Errors: 0, Skipped: 0 -- BUILD SUCCESS
+$ npm run build -> built in 69 ms
+All apps stopped and `ollama stop qwen3.5:4b` (and qwen3.5:9b) run at the end.
+
+## Summary (qwen3.5:4b, think=false)
+                        normal                                   CPU only (num-gpu=0, ollama ps: 100% CPU)
+episode 1 page          "What is recursion?" done 16.9-17.9 s,   -
+                        Markdown, Python example
+Chai (system prompt)    0.7-2.5 s per answer                     5-10 s per answer (first includes loading the model)
+/stream with ?level=    2.0-2.5 s                                4.0-9.0 s
+/quiz                   6.4-12.9 s (page: 10-15.5 s)             26.7-36.1 s (page: 29.5 s)
+/quiz parsed            25 of 25 (+9 of 9 in the page)           5 of 5
+answerIndex in range    25 of 25                                 5 of 5
+marked answer right     47 of 75 (63%); page tries 15 of 27      10 of 15
+qwen3.5:9b /quiz        27 of 30 right, 13-18 s per quiz         not tested
+# Note: an M4 Max CPU is fast. An ordinary laptop CPU will be slower (expect several seconds per answer and about a
+# minute or more per quiz), but it works.
