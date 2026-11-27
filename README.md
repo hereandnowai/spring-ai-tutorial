@@ -11,8 +11,8 @@ even without a graphics card**, with a small open model served by [Ollama](https
 | # | Topic | Code |
 |---|---|---|
 | 1 | Your first AI chatbot: Spring Boot + Spring AI + a React chat page, step by step | [01-first-ai-chatbot](01-first-ai-chatbot) |
-| 2 | Prompt templates and structured output | coming soon |
-| 3 | Chat memory (session memory in Spring AI 2.1) | coming soon |
+| 2 | A smarter chatbot: system prompt, prompt templates and a quiz with structured output ([video](https://youtu.be/ZN-pDVtrzoU)) | [02-smarter-chatbot](02-smarter-chatbot) |
+| 3 | Chatbot memory: chat memory advisor, conversation IDs, JDBC + H2 ([video](https://youtu.be/uhmX_H_6D8U)) | [03-chatbot-memory](03-chatbot-memory) |
 | 4 | RAG with pgvector: chat with your documents | coming soon |
 | 5 | Tool calling: let the model call your Java methods | coming soon |
 | 6 | MCP: build an MCP server and client | coming soon |

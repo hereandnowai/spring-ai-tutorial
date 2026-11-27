@@ -1,0 +1,480 @@
+# Real runs, 26 Nov 2026 ~02:05-03:05 IST, macOS (Apple M4 Max, 128 GB). Episode 3 v2 "Give your chatbot a memory".
+# Same project as episodes 1 and 2 (my-first-chatbot: spring-ai-chat + chat-ui), copied from 02-smarter-chatbot, then changed step by step.
+# Java: Eclipse Temurin 21.0.13.1+2. Spring Boot 4.2.0, Spring AI 2.1.0-M1 (as start.spring.io wrote it in episode 1; start.spring.io
+#   still picks 2.1.0-M1 for Spring Boot 4.2.0). New in this episode: spring-ai-starter-model-chat-memory-repository-jdbc 2.1.0-M1, H2 2.5.252.
+# Ollama 0.32.13, qwen3.5:4b, think=false, num-ctx=8192, temperature 0.7 (unchanged from episode 1).
+# Node.js v26.13.0, Vite 8.3.8, React 19.3.1. Ports: Spring 8080, Vite 5173, Ollama 11434.
+# Two modes: "normal" (Ollama may use the GPU) and "CPU only" (--spring.ai.ollama.chat.num-gpu=0; ollama ps: 100% CPU).
+# Chat page runs: headless Chromium at 1920x1080 types the message, presses Enter and measures "first words" (first text in
+# the answer bubble) and "done" (Send button back). Each "session" is ONE real conversation; the screenshots in the video
+# come from one session per demo, never spliced together. Times are wall-clock.
+
+## Step 2: open the project (episode 2 code, unchanged), normal mode
+$ ollama list
+NAME          ID              SIZE      MODIFIED
+qwen3.5:4b    d8b0f5e9760c    3.3 GB    24 hours ago
+   (our machine lists other models too; only this one is needed)
+$ cd spring-ai-chat
+$ ./mvnw spring-boot:run
+Started SpringAiChatApplication in 0.901 seconds (process running for 1.046)
+$ cd chat-ui          (second terminal)
+$ npm run dev
+  VITE v8.3.8  ready in 1423 ms
+  ➜  Local:   http://localhost:5173/
+Chat page: "My name is Emma." then "What's my name?", 4 sessions. Chai did not know the name in 4 of 4.
+  session A:
+   My name is Emma.  (first words 1.98 s, done 2.29 s)
+      Hello Emma! It is nice to meet you. I am ready to help you learn Java. What would you like to learn first?
+   What's my name?  (first words 0.37 s, done 0.62 s)
+      My name is Chai, but I don't know your name yet. Tell me what you want to learn about Java today.
+  session B:
+   My name is Emma.  (first words 0.37 s, done 1.47 s)
+      Hello Emma! I am happy to help you learn Java. We can start by learning how to make a simple program that prints your name to the screen. Here is one small method to try:
+      
+      public static void main(String[] args) {
+          System.out.println("Hello, Emma!");
+      }
+   What's my name?  (first words 0.37 s, done 0.63 s)
+      I don't know your name yet. You can tell me it in this chat. I am happy to learn your name now.
+  session C:
+   My name is Emma.  (first words 0.37 s, done 0.52 s)
+      Hello Emma! That is a beautiful name. How are you feeling today?
+   What's my name?  (first words 0.37 s, done 0.83 s)
+      I do not know your name yet because you have not told me. You can tell me your name anytime to learn new things about programming together. I will call you by your name from now on if you like.
+  session D:
+   My name is Emma.  (first words 0.37 s, done 0.68 s)
+      Hello Emma! I am Chai, and I will help you learn Java. We can start by looking at your first program today.
+   What's my name?  (first words 0.37 s, done 0.62 s)
+      I do not know your name yet. You did not tell me your name in our conversation. Please say it now so I can learn!
+  Video: session A.
+
+## Step 4, first try (as in the plan): .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build()) in the constructor
+$ curl "localhost:8080/stream?q=My%20name%20is%20Emma."  -> HTTP 500
+$ curl "localhost:8080/chat?q=hi"                        -> HTTP 500
+log: java.lang.IllegalArgumentException: conversationId cannot be null
+   -> Spring AI 2.1.0-M1 has no default conversation id (docs: "There is no default conversation ID."), and a default
+      memory advisor would also break /chat, /recipe and /quiz. Final step-4 code: the advisor is built in the constructor
+      (field `memory`) and used in /stream only, with the conversation id "default":
+        .advisors(memory)
+        .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, "default"))
+
+## Step 5: restart and test (step-4 code; ChatMemory auto-configured: MessageWindowChatMemory, 20 messages, kept in RAM), normal mode
+App restarted before each session (each starts with an empty memory). Chai knew the name in 4 of 4; every answer done in under 1.1 s.
+  session A:
+   My name is Emma.  (first words 0.63 s, done 1.05 s)
+      Hello Emma! I am Chai, and we can start learning Java right now. Just tell me what you want to learn first, like variables or loops.
+   What's my name?  (first words 0.37 s, done 0.63 s)
+      Your name is Emma. I call you Emma because it makes our lessons fun. Let us begin with something simple today.
+  session B:
+   My name is Emma.  (first words 0.53 s, done 0.84 s)
+      Hello Emma! I am Chai, and I love helping people learn Java. Just tell me what you want to understand or do today.
+   What's my name?  (first words 0.37 s, done 0.63 s)
+      Your name is Emma. I know it because you told me your name right here. Would you like to try learning a simple Java program now?
+  session C:
+   My name is Emma.  (first words 0.53 s, done 0.79 s)
+      Hi Emma! It's nice to meet you. I can help you learn Java by making it simple and fun.
+   What's my name?  (first words 0.37 s, done 0.53 s)
+      Your name is Emma. Did you forget, or are you testing me?
+  session D:
+   My name is Emma.  (first words 0.53 s, done 1.00 s)
+      Hello Emma! I am Chai, your friendly Java tutor here and now. We will learn Java together at your own pace. Are you ready to start our first lesson?
+   What's my name?  (first words 0.37 s, done 0.63 s)
+      Your name is Emma. I am glad we can say hello again. Would you like to try printing "Hello, Emma" in Java?
+  Video: session B.
+
+## Step 6: the mix-up (step-4 code: everyone shares the conversation id "default"), two browser windows, normal mode
+App restarted before each try. Window 1 = Emma, window 2 = Liam: Emma "My name is Emma.", Liam "My name is Liam.",
+Emma "What's my name?", Liam "What's my name?". 8 tries (A-H). Emma's answer: called Liam 5 of 8 (A, B, E, F, H),
+both names mixed up 2 of 8 (D, G), right 1 of 8 (C; and then Liam's answer said "I thought you were Emma earlier").
+  session A:
+   Emma: My name is Emma.  (first words 0.53 s, done 0.79 s)
+      Hi Emma! It is nice to meet you. I will help you learn Java step by step so it makes sense for you.
+   Liam: My name is Liam.  (first words 0.37 s, done 0.79 s)
+      Hello Liam! That is a great name to have when learning a new language. I am ready to teach you how Java works, starting with the very basics.
+   Emma: What's my name?  (first words 0.36 s, done 0.57 s)
+      Your name is Liam. I remember that from our conversation. You are doing great as a beginner!
+   Liam: What's my name?  (first words 0.37 s, done 0.57 s)
+      Your name is Liam. I am happy to help you learn Java. We will start with simple ideas today.
+  session B:
+   Emma: My name is Emma.  (first words 0.58 s, done 0.74 s)
+      Hi Emma! It's nice to meet you. Let's start learning Java together.
+   Liam: My name is Liam.  (first words 0.32 s, done 0.68 s)
+      Hello Liam! I remember your name was Emma just now. Did you make a mistake? We can learn any topic you like in Java.
+   Emma: What's my name?  (first words 0.32 s, done 0.52 s)
+      Your name is Liam, Emma. Let me know which topic you want to learn first.
+   Liam: What's my name?  (first words 0.32 s, done 0.58 s)
+      Your name is Liam. I might have said Emma by accident earlier. Which Java topic would you like to start with?
+  session C:
+   Emma: My name is Emma.  (first words 0.58 s, done 1.54 s)
+      Hi Emma, great to meet you! You can start by learning how to print messages in Java. Here is a simple example of that: public static void main(String[] args) { System.out.println("Hello, Emma!"); }
+   Liam: My name is Liam.  (first words 0.32 s, done 1.20 s)
+      Hi Liam, nice to meet you! Let's start by writing your own greeting message. Here is a tiny Java method to print it: public static void main(String[] args) { System.out.println("Hello, Liam!"); }
+   Emma: What's my name?  (first words 0.37 s, done 0.58 s)
+      Hi Emma again! Your name is Emma. I remember you from our first conversation about printing messages in Java.
+   Liam: What's my name?  (first words 0.37 s, done 0.84 s)
+      Your name is Liam. I am sorry, I thought you were Emma earlier. Let me help you write a message with your real name: public static void main(String[] args) { System.out.println("Hello, Liam!"); }
+  session D:
+   Emma: My name is Emma.  (first words 0.53 s, done 0.74 s)
+      Hello Emma! I am Chai, your friendly Java tutor. What would you like to learn first?
+   Liam: My name is Liam.  (first words 0.38 s, done 0.64 s)
+      Hello Liam! I am Chai, your friendly Java tutor. How can I help you start learning today?
+   Emma: What's my name?  (first words 0.32 s, done 0.69 s)
+      Your name is Emma.
+      Wait, did you change your mind and go by Liam now?
+      Or maybe you are practicing how to talk to me?
+   Liam: What's my name?  (first words 0.32 s, done 0.63 s)
+      Your name is Liam.
+      I remember you told me that just a moment ago.
+      Would you like to learn about Java variables next?
+  session E:
+   Emma: My name is Emma.  (first words 0.54 s, done 0.85 s)
+      Hello Emma! I am Chai and I will help you learn Java. We can start by printing your name to the screen right now.
+   Liam: My name is Liam.  (first words 0.38 s, done 1.28 s)
+      Hello Liam! I am Chai and I will help you learn Java. Here is a simple method that prints "Hello, Liam!" to the screen.
+      
+      public static void sayHello() {
+          System.out.println("Hello, Liam!");
+      }
+   Emma: What's my name?  (first words 0.37 s, done 0.58 s)
+      Your name is Liam. I remember you told me earlier. We can use that in our Java code now.
+   Liam: What's my name?  (first words 0.32 s, done 0.63 s)
+      Your name is Liam. We can write a program to say your name using the computer. Let's try it together soon.
+  session F:
+   Emma: My name is Emma.  (first words 0.59 s, done 1.16 s)
+      Hello Emma! I am Chai, your friendly Java tutor here and now. Would you like to start learning about variables or loops? Here is a simple example of a variable: int myNumber = 5;
+   Liam: My name is Liam.  (first words 0.32 s, done 0.64 s)
+      Hi Liam! I will help you learn Java step by step. Do you want to try your first small code snippet now?
+   Emma: What's my name?  (first words 0.37 s, done 0.79 s)
+      Hello Liam again! I am Chai, your friendly Java tutor here and now. Would you like to start learning about variables or loops? Here is a simple example of a variable: int myNumber = 5;
+   Liam: What's my name?  (first words 0.32 s, done 0.80 s)
+      Your name is Liam. That was a small mistake in my last message! I am Chai, and I will help you learn Java step by step. Would you like to try your first small code snippet now?
+  session G:
+   Emma: My name is Emma.  (first words 0.54 s, done 0.85 s)
+      Hi Emma! It is nice to meet you. I am here to help you learn Java. Let us start our first lesson together.
+   Liam: My name is Liam.  (first words 0.33 s, done 0.74 s)
+      Hello Liam, it is a pleasure to meet you. We can start learning Java right now. Would you like to see your first code example?
+   Emma: What's my name?  (first words 0.37 s, done 0.64 s)
+      Your name is Emma.
+      Then it becomes Liam.
+      Or maybe we just call you by what you say is true.
+   Liam: What's my name?  (first words 0.38 s, done 0.58 s)
+      Your name is Liam.
+      I heard you say that just now.
+      Let us proceed with your learning today.
+  session H:
+   Emma: My name is Emma.  (first words 0.54 s, done 0.85 s)
+      Hello Emma! It is nice to meet you. I am happy to help you learn Java. Would you like to start with a simple program?
+   Liam: My name is Liam.  (first words 0.33 s, done 0.64 s)
+      Hello Liam! That is great. Let us begin learning together right away. Shall we write a small Java code block now?
+   Emma: What's my name?  (first words 0.32 s, done 0.69 s)
+      I do not know your name yet, Liam. Please tell me again what you would like to be called today. I am ready to learn with you.
+   Liam: What's my name?  (first words 0.37 s, done 0.58 s)
+      My name is Chai. My friend named you Liam earlier. Let us start writing Java code now.
+  Video: session A.
+
+## Step 7: a conversation id: /stream?...&chatId=... (@RequestParam(defaultValue = "default") String chatId), normal mode
+App restarted before each run. 4 runs x 2 questions: all 8 answers right (Emma -> Emma, Liam -> Liam). curl shows the same text as the browser.
+== run 1
+[emma] My%20name%20is%20Emma. (0.82 s)
+   Hello Emma! It is nice to meet you. I can help you learn Java step by step. What would you like to try first?
+[liam] My%20name%20is%20Liam. (0.67 s)
+   Hi Liam! It's nice to meet you. I am here to help you learn Java step by step. What would you like to learn first?
+[emma] What's%20my%20name%3F (0.76 s)
+   Your name is Emma. I am happy to teach you Java. Let's start with your very first line of code!
+[liam] What's%20my%20name%3F (0.76 s)
+   Your name is Liam. I remember that you just told me your name. Let us start learning Java now.
+== run 2
+[emma] My%20name%20is%20Emma. (0.87 s)
+   Hello Emma! I am Chai here to help you learn Java. Just tell me what you would like to learn first.
+[liam] My%20name%20is%20Liam. (0.56 s)
+   Hi Liam! I am ready to teach you Java today. What would you like to learn first?
+[emma] What's%20my%20name%3F (0.71 s)
+   Your name is Emma. You are learning from me, the friendly tutor Chai. Would you like us to start with a simple program?
+[liam] What's%20my%20name%3F (0.68 s)
+   Your name is Liam. I remember it now. How can I help you with Java next?
+== run 3
+[emma] My%20name%20is%20Emma. (0.81 s)
+   Hello Emma! I am Chai, your friendly Java tutor. What would you like to learn today?
+[liam] My%20name%20is%20Liam. (0.78 s)
+   Hello Liam! It's nice to meet you. I am Chai, your friendly Java tutor here right now. Let's learn Java together step by step. Would you like to start with something simple?
+[emma] What's%20my%20name%3F (0.64 s)
+   Your name is Emma.
+It was told to me by you.
+I will always say it correctly.
+[liam] What's%20my%20name%3F (0.88 s)
+   Your name is Liam. That is a great name to start with. Shall we write our first Java program together?
+== run 4
+[emma] My%20name%20is%20Emma. (0.91 s)
+   Hello Emma! It is nice to meet you. I will teach you Java step by step. Just ask me any question whenever you are ready.
+[liam] My%20name%20is%20Liam. (0.66 s)
+   Hi Liam! It's nice to meet you. I'm here to help you learn Java step by step. What would you like to do first?
+[emma] What's%20my%20name%3F (0.56 s)
+   Your name is Emma. I remember it well. Shall we start learning Java now?
+[liam] What's%20my%20name%3F (0.83 s)
+   Your name is Liam. I am Chai, your Java tutor. Let's start learning together!
+  Video: run 1.
+
+## Step 8: App.jsx sends the chatId (useState(crypto.randomUUID()), &chatId= in the fetch address), two windows, normal mode
+No restart needed: every page gets its own random id. 4 sessions, 8 questions: all 8 right.
+  session A:
+   Emma: My name is Emma.  (first words 0.38 s, done 0.64 s)
+      Hi Emma! Great to meet you. Would you like to learn how to write your first program in Java?
+   Liam: My name is Liam.  (first words 0.38 s, done 0.85 s)
+      Hello Liam! It is great to meet you. I am Chai, and I will help you learn Java step by step. Just ask me anything about programming or code.
+   Emma: What's my name?  (first words 0.37 s, done 0.74 s)
+      Your name is Emma. I am Chai, and we can start learning Java together if you want. Just let me know what you'd like to try next!
+   Liam: What's my name?  (first words 0.43 s, done 0.69 s)
+      Your name is Liam. I am glad we are starting our Java journey together. Let us begin with the very first topic today.
+  session B:
+   Emma: My name is Emma.  (first words 0.38 s, done 0.75 s)
+      Hi Emma! I am Chai, your friendly Java tutor here to help you start learning. Just type a question whenever you are ready.
+   Liam: My name is Liam.  (first words 0.38 s, done 0.81 s)
+      Hello Liam! I am your friendly tutor from HERE AND NOW AI. I will help you learn Java step by step. Welcome to your new coding journey!
+   Emma: What's my name?  (first words 0.38 s, done 0.90 s)
+      Your name is Emma. Would you like to learn how to greet people in Java? Here is a small method:
+      public static void sayHello(String name) {
+          System.out.println("Hi " + name);
+      }
+   Liam: What's my name?  (first words 0.43 s, done 0.64 s)
+      Your name is Liam. Nice to meet you, Liam! Let's start learning Java together.
+  session C:
+   Emma: My name is Emma.  (first words 0.38 s, done 0.59 s)
+      Hello Emma! It's great to meet you. I'll help you learn Java step by step.
+   Liam: My name is Liam.  (first words 0.37 s, done 0.81 s)
+      Hi Liam! It is nice to meet you. I will help you learn Java step by step. Do you have any questions about what Java can do?
+   Emma: What's my name?  (first words 0.37 s, done 0.59 s)
+      Your name is Emma. I remember we just met. How can I help you today?
+   Liam: What's my name?  (first words 0.43 s, done 0.69 s)
+      Your name is Liam. I just told you that a moment ago. Did you forget because you were busy learning something new?
+  session D:
+   Emma: My name is Emma.  (first words 0.38 s, done 1.44 s)
+      Hello Emma! I am Chai and I will help you learn Java. Let us start by saying hello to your computer. Here is a small program: public class Hello { public static void main(String[] args) { System.out.println("Hi, I am Chai!"); } }
+   Liam: My name is Liam.  (first words 0.38 s, done 1.33 s)
+      Hello Liam! I am Chai here to teach you Java. We can start by printing your name in the console. Here is a simple method:
+      
+      public static void main(String[] args) {
+      System.out.println("Hi, I am Liam!");
+      }
+   Emma: What's my name?  (first words 0.43 s, done 0.64 s)
+      Your name is Emma. I remember you from our first hello. Would you like to try running that code?
+   Liam: What's my name?  (first words 0.42 s, done 0.73 s)
+      My name is Chai, and your name is Liam. Let us practice printing names in Java together soon. Would you like to try writing that code yourself now?
+  Video: session A.
+
+## Step 9: the New chat button (a new random id + the first greeting again), normal mode
+"My name is Emma.", "What's my name?", click New chat, "What's my name?". After New chat: "I don't know" in 3 of 4; once (C) Chai just introduced itself.
+  session A:
+   My name is Emma.  (first words 0.38 s, done 0.92 s)
+      Hi Emma! I am Chai, your friendly Java tutor here to help you learn. Just ask me anything about Java, and I will explain it simply for you.
+   What's my name?  (first words 0.32 s, done 0.53 s)
+      Your name is Emma. You introduced yourself earlier when we started talking. I remember that!
+   What's my name?  (first words 0.38 s, done 0.64 s)
+      I don't know your name yet. Try telling me it so we can start learning together. What is your name?
+  session B:
+   My name is Emma.  (first words 0.38 s, done 0.59 s)
+      Hi Emma! It's nice to meet you. I will help you learn Java easily.
+   What's my name?  (first words 0.32 s, done 0.53 s)
+      Your name is Emma. I am Chai, your friendly Java tutor. Let's start learning today!
+   What's my name?  (first words 0.38 s, done 1.16 s)
+      I don't know your name because you haven't told me yet.
+      Please tell me your name so I can say it back to you!
+      Just type your name in the chat and I will learn it right away.
+  session C:
+   My name is Emma.  (first words 0.37 s, done 0.69 s)
+      Hello Emma! I am Chai, your friendly Java tutor here to help you learn. What would you like to know about Java?
+   What's my name?  (first words 0.32 s, done 0.54 s)
+      Your name is Emma. Did you have a question about Java for us to answer?
+   What's my name?  (first words 0.37 s, done 0.91 s)
+      My name is Chai. I am your friendly Java tutor here to help you learn. Don't worry about knowing everything yet; we will take it step by step.
+  session D:
+   My name is Emma.  (first words 0.38 s, done 1.60 s)
+      Hello Emma! I am Chai, your friendly Java tutor here to help you learn programming. Would you like to start by creating your very first program? Here is a simple method that prints "Hello, Emma" to the screen: public static void main(String[] args) { System.out.println("Hello, Emma!"); }
+   What's my name?  (first words 0.37 s, done 0.64 s)
+      Your name is Emma. You told me it was you earlier. I am happy to teach you Java with your name in mind!
+   What's my name?  (first words 0.38 s, done 0.80 s)
+      I don't know your name because you haven't told me. You can tell me now if you like. Just say it and I will remember.
+  Video: session A.
+
+## Part 6 intro: with the step-9 code the memory lives in RAM, so a restart loses it, normal mode
+"My name is Emma.", "What's my name?", Ctrl+C + ./mvnw spring-boot:run (Started ... in 0.84 s), same page (same chatId), "What's my name?": forgotten in 2 of 2.
+  session A:
+   My name is Emma.  (first words 0.63 s, done 1.79 s)
+      Hello Emma! Welcome to my Java class. Let's start by learning how to write our first program. Here is a simple example:
+      
+      public class HelloEmma {
+          public static void main(String[] args) {
+              System.out.println("Hi, I am Chai!");
+          }
+      }
+   What's my name?  (first words 0.37 s, done 0.68 s)
+      My name is Chai, but your name is Emma. You can see it in the code I just shared. Would you like to try writing something simple together?
+   What's my name?  (first words 0.64 s, done 0.96 s)
+      I don't know your name yet. You can tell me what it is. I am happy to help you learn Java now.
+  session B:
+   My name is Emma.  (first words 0.38 s, done 1.54 s)
+      Hello Emma! It is nice to meet you. I am Chai and I will help you learn Java step by step. Let's start with your first small code method: public int add(int a, int b) { return a + b; } This method takes two numbers and adds them together.
+   What's my name?  (first words 0.37 s, done 0.53 s)
+      Your name is Emma. I am happy to help you learn. Let's keep practicing Java together.
+   What's my name?  (first words 0.64 s, done 0.90 s)
+      I don't know your name yet. You can tell me now. I am ready to learn about you.
+  Video: session A.
+
+## Steps 10-11: pom.xml (+ spring-ai-starter-model-chat-memory-repository-jdbc, + com.h2database:h2 with <scope>runtime</scope>; no versions:
+## the Spring AI BOM and Spring Boot pick 2.1.0-M1 and 2.5.252), application.properties (+2 settings), .gitignore (+2 lines)
+  spring.datasource.url=jdbc:h2:file:./chai-memory
+  spring.ai.chat.memory.repository.jdbc.initialize-schema=always
+   (initialize-schema: the default "embedded" only creates the table for in-memory databases; a FILE database needs "always".
+    The H2 script uses CREATE TABLE IF NOT EXISTS, so "always" is safe on every start and keeps the old messages.)
+$ ./mvnw spring-boot:run
+HikariPool-1 - Added connection conn0: url=jdbc:h2:file:./chai-memory user=
+Started SpringAiChatApplication in 1.093 seconds (process running for 1.254)
+$ ls
+HELP.md  chai-memory.mv.db  mvnw  mvnw.cmd  pom.xml  src  target        <- the new database file (16 KB at first)
+
+## Step 12: restart and prove it (final code), normal mode
+"My name is Emma.", "What's my name?", Ctrl+C + ./mvnw spring-boot:run (Started ... in 1.05 s), same page, "What's my name?": remembered 4 of 4.
+  session A:
+   My name is Emma.  (first words 0.64 s, done 0.96 s)
+      Hi Emma! It is nice to meet you. I am ready to teach you Java whenever you want. Shall we start with variables today?
+   What's my name?  (first words 0.32 s, done 0.58 s)
+      Your name is Emma. Do not forget to tell me your favorite color soon. I will remember it for our next lesson.
+   What's my name?  (first words 0.64 s, done 1.54 s)
+      Your name is Emma. You asked that question twice already! Shall we try writing your name in a Java variable now? Here is a small example: public static void main(String[] args) { System.out.println("Hello " + "Emma"); }
+  session B:
+   My name is Emma.  (first words 0.28 s, done 0.64 s)
+      Hello Emma! It is great to meet you. I am Chai, your friendly Java tutor here and now. Let us start learning Java together today.
+   What's my name?  (first words 0.32 s, done 0.53 s)
+      Your name is Emma.
+      I will always call you that.
+      Let us learn Java together!
+   What's my name?  (first words 0.64 s, done 0.91 s)
+      Your name is Emma.
+      I am happy to teach you Java.
+      Shall we start our first lesson now?
+  session C:
+   My name is Emma.  (first words 0.33 s, done 0.76 s)
+      Hello Emma, it's nice to meet you! I'm Chai and I'll help you learn Java step by step. Just tell me what you want to try first!
+   What's my name?  (first words 0.32 s, done 0.58 s)
+      Your name is Emma. You just told me that yourself! How can I help you with Java today?
+   What's my name?  (first words 0.64 s, done 1.06 s)
+      My name is Chai, but your name is Emma. We can start learning Java now if you want! Just tell me what you'd like to do first.
+  session D:
+   My name is Emma.  (first words 0.32 s, done 0.69 s)
+      Hello Emma! It is nice to meet you. I will help you learn Java step by step. Would you like to try writing your first small program?
+   What's my name?  (first words 0.32 s, done 0.58 s)
+      My name is Chai, and your name is Emma. Do you want to write a simple Java hello world program now?
+   What's my name?  (first words 0.64 s, done 0.90 s)
+      Your name is Emma. I am happy to help you learn Java with you. Would you like to start writing code right now?
+  Video (step 12 and the hook): session B.
+
+## Inside the database (app stopped; H2 2.5.252 Shell; empty user = the Spring Boot default)
+$ java -cp h2-2.5.252.jar org.h2.tools.Shell -url jdbc:h2:file:./chai-memory -user "" -password "" \
+     -sql "SELECT conversation_id, COUNT(*) AS messages FROM SPRING_AI_CHAT_MEMORY GROUP BY conversation_id ORDER BY messages DESC FETCH FIRST 6 ROWS ONLY"
+CONVERSATION_ID          | MESSAGES
+normal2-15-1795639847756 | 20
+cold2-9-1795641623421    | 20
+normal1-10-1795639710210 | 20
+cpu-10-1795641757832     | 20
+normal1-15-1795639739189 | 20
+cpuB-10-1795641906387    | 20
+(6 rows, 11 ms)
+   -> at most 20 messages per conversation are kept, in the database too (the window).
+
+## Honest numbers: answer time vs. history, and the 20-message window (final code; a small Node client calling /stream), normal mode
+Each line: a fresh chatId, "My name is Emma.", then N Java questions ("What is a variable?", ...), then "What's my name?" (timed).
+"fill" = N; messages in memory before the question = 2 + 2N (the window keeps at most 20).
+normal1  fill  0 turns  messages in memory before the question:  2  first words 0.46 s  done 1.03 s
+    Your name is Emma. I am happy to help you learn Java. Let's begin with the very first line of code.
+normal1  fill  4 turns  messages in memory before the question: 10  first words 0.46 s  done 1.39 s
+    Your name is Emma! I know you told me that at the very beginning of our chat. Did you want to try using your name in Java code, like printing "Hi Emma"?
+normal1  fill  9 turns  messages in memory before the question: 20  first words 0.46 s  done 1.25 s
+    Your name is Emma. That is the name you gave me earlier. I am happy to teach you about programming with your name in mind.
+normal1  fill 10 turns  messages in memory before the question: 20 (of 22 sent; window keeps 20)  first words 1.79 s  done 2.77 s
+    I don't know your real name because you haven't told me yet! You can use a String variable to store it, like this: String userName = "Emma";
+normal1  fill 15 turns  messages in memory before the question: 20 (of 32 sent; window keeps 20)  first words 2.23 s  done 3.43 s
+    My name is Chai, and I am here to help you learn Java. You asked me about programming concepts like arrays and loops. Have you tried writing a simple hello worl
+normal2  fill  0 turns  messages in memory before the question:  2  first words 0.45 s  done 1.26 s
+    Your name is Emma. I remember it well because you told me right away. Would you like to learn how to print a message in Java next?
+normal2  fill  4 turns  messages in memory before the question: 10  first words 0.53 s  done 1.16 s
+    Your name is Emma. I remember you told me that just now. It is nice to know your name when we learn together.
+normal2  fill  9 turns  messages in memory before the question: 20  first words 0.43 s  done 1.01 s
+    Your name is Emma! I saved it in our first variable together. Would you like to try writing code next?
+normal2  fill 10 turns  messages in memory before the question: 20 (of 22 sent; window keeps 20)  first words 1.86 s  done 3.01 s
+    Your name depends on who you are talking to right now. In this chat, your name is not set yet, so I don't know it. You can tell me your name and I will remember
+normal2  fill 15 turns  messages in memory before the question: 20 (of 32 sent; window keeps 20)  first words 2.00 s  done 2.91 s
+    I don't know your name because you haven't told me yet. You can tell me your name in our chat and I will remember it for this conversation.
+normal3  fill  0 turns  messages in memory before the question:  2  first words 0.44 s  done 0.69 s
+    Your name is Emma. I remember you very well now. You are doing great so far!
+normal3  fill  4 turns  messages in memory before the question: 10  first words 0.53 s  done 1.25 s
+    Your name is Emma. I remember it from our first chat. It is nice to have your name in mind while we learn Java together.
+normal3  fill  9 turns  messages in memory before the question: 20  first words 0.62 s  done 1.50 s
+    Your name is Emma! I am happy to teach you Java with you. Would you like to try writing some code together next?
+normal3  fill 10 turns  messages in memory before the question: 20 (of 22 sent; window keeps 20)  first words 1.98 s  done 4.24 s
+    I do not know your name because we have just started talking. You can tell me your name, and I will remember it! Here is a small example that asks for your name
+normal3  fill 15 turns  messages in memory before the question: 20 (of 32 sent; window keeps 20)  first words 1.43 s  done 1.89 s
+    Your name is Emma. Hello to you too! How can I help you learn Java today?
+Another chat in between (a request on another chatId right before the timed question), normal mode:
+cold   fill 0 (2 msgs) first words 0.46 s, done 1.19 s | fill 4 (10 msgs) 1.04 s / 1.98 s | fill 9 (20 msgs) 0.40 s / 1.33 s
+cold2  fill 0 (2 msgs) first words 0.58 s, done 1.20 s | fill 4 (10 msgs) 1.03 s / 1.71 s | fill 9 (20 msgs) 0.36 s / 1.03 s
+Reading: while the window is not full, Ollama usually reuses the work it already did for the same conversation, so the time
+hardly grows. Once old messages drop out (22+ messages sent), the start of the conversation changes and the model has to
+read all 20 messages again: first words 1.4-2.2 s instead of about 0.5 s on our machine.
+Window: with 22 or 32 messages sent, "My name is Emma." had dropped out and the name was forgotten in 5 of 6 (normal3 fill 15
+still said Emma: one of the kept answers used "Emma" in example code). With exactly 20 (fill 9) the first message had dropped
+out as well, but Chai's own reply "Hello Emma!..." was still in the window, so it knew (3 of 3).
+
+## CPU only (./mvnw spring-boot:run -Dspring-boot.run.arguments=--spring.ai.ollama.chat.num-gpu=0), final code
+$ ollama ps
+NAME          ID              SIZE      PROCESSOR    CONTEXT    UNTIL
+qwen3.5:4b    d8b0f5e9760c    3.9 GB    100% CPU     8192       4 minutes from now
+Chat page: "My name is Emma." 4.81 s / 6.28 s (includes loading the model), "What's my name?" 0.48 s / 0.90 s ("Your name is Emma. ..."),
+restart (Started ... in 1.035 s), same page, "What's my name?" 0.94 s / 2.33 s ("Your name is Emma. We can make simple programs together. ...").
+cpu  fill  0 turns  messages in memory before the question:  2  first words 0.82 s  done 1.87 s
+cpu  fill  4 turns  messages in memory before the question: 10  first words 0.94 s  done 2.56 s
+cpu  fill  9 turns  messages in memory before the question: 20  first words 0.75 s  done 2.51 s
+cpu  fill 10 turns  messages in memory before the question: 20 (of 22 sent; window keeps 20)  first words 7.16 s  done 10.07 s
+cpucold  fill  0 turns  messages in memory before the question:  2  first words 1.26 s  done 1.98 s
+cpucold  fill  4 turns  messages in memory before the question: 10  first words 3.52 s  done 4.66 s
+cpucold  fill  9 turns  messages in memory before the question: 20  first words 0.71 s  done 2.27 s
+cpuB  fill  0 turns  messages in memory before the question:  2  first words 0.77 s  done 1.91 s
+    Your name is Emma. I asked that because you told me earlier! It's nice to know your name.
+cpuB  fill 10 turns  messages in memory before the question: 20 (of 22 sent; window keeps 20)  first words 6.75 s  done 8.25 s
+    I don't know your real name because you haven't told me yet. You can just write it here, and I will remember it.
+cpucoldB  fill  9 turns  messages in memory before the question: 20  first words 0.88 s  done 2.40 s
+    Your name is Emma. I know it because you told me earlier in our conversation. We can use that name right now if you want!
+Reading (CPU only): 2 messages: first words about 0.8 s. All 20 messages read again (the window sliding, fill 10): 6.75 s and 7.16 s.
+"cpucold" = another chat in between: 10 messages 3.52 s; with 20 (fill 9) Ollama could still reuse its earlier work (0.71 s, 0.88 s).
+
+## The episode 4 teaser (final code, normal mode, a new chat each time)
+"What does our company's leave policy say?": Chai doesn't know in 3 of 3.
+  session A:
+   What does our company's leave policy say?  (first words 2.01 s, done 3.09 s)
+      I am Chai, and I do not know your company's specific rules because I do not have access to internal documents. You should check your employee handbook or ask HR for this information. Would you like me to teach you how to write a program that calculates vacation days instead?
+  session B:
+   What does our company's leave policy say?  (first words 0.27 s, done 0.94 s)
+      I don't know your company's rules because I only teach programming. You should check your employee handbook or ask your manager for the correct answer. If you want to write a code example instead, let me know!
+  session C:
+   What does our company's leave policy say?  (first words 0.27 s, done 0.89 s)
+      I do not have access to your company's internal policies or documents. You must check your employee handbook or HR website for the correct rules. If you need help reading a specific paragraph, paste it here!
+  Video: session A.
+
+## Checks
+$ ./mvnw test   -> Tests run: 1, Failures: 0, Errors: 0, Skipped: 0 (the test starts the app with the H2 file database)
+$ npm run build -> built in 82 ms
+$ npm run lint  -> 2 harmless warnings (an unused `err` in two catch blocks, as in episode 2)
+$ git check-ignore spring-ai-chat/chai-memory.mv.db -> ignored (*.mv.db and *.trace.db in spring-ai-chat/.gitignore)
+All apps stopped and `ollama stop qwen3.5:4b` run at the end.
+
+## Summary (qwen3.5:4b, think=false)
+                               normal                                       CPU only (num-gpu=0, ollama ps: 100% CPU)
+episode 2 code (no memory)     knew the name 0 of 4                          -
+memory (in RAM), one id        knew the name 4 of 4, answers 0.5-1.1 s       knew it, 0.9 s
+two people, one shared id      Emma called Liam 5/8, mixed 2/8, right 1/8    -
+one id per person              8 of 8 right (curl), 8 of 8 (chat page)       -
+New chat                       "doesn't know" 3 of 4 (once: just an intro)    -
+restart, memory in RAM         forgotten 2 of 2                              -
+restart, memory in H2 file     remembered 4 of 4                             remembered 1 of 1
+2 messages in memory           first words ~0.45 s                           ~0.8 s
+all 20 read again (window)     first words 1.4-2.2 s                         6.75-7.2 s
+after 22+ messages             name forgotten 5 of 6 (window = 20)           -
+# Note: an M4 Max is fast, even on its CPU. An ordinary laptop CPU will be slower, but it works.
